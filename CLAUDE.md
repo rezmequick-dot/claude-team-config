@@ -1,0 +1,111 @@
+# Global Claude Code Instructions
+
+## Languages & Stack
+- Primary language: TypeScript/JavaScript (Node.js, React, Next.js, etc.)
+
+## Git Behavior
+- Commit freely without asking, but always ask before pushing to remote.
+- Never force push unless explicitly requested.
+- Never skip hooks (--no-verify) unless explicitly asked.
+- Prefer creating new commits over amending existing ones.
+
+## Code Style
+- Add comments to explain non-obvious logic, edge cases, and intent.
+- Do not add comments to self-evident code.
+- Do not add docstrings or JSDoc to code I didn't change.
+- Keep solutions simple — avoid over-engineering or premature abstraction.
+
+## Response Style
+- Provide detailed explanations and reasoning when making changes.
+- Explain the "why" behind decisions, not just the "what".
+- When referencing code, include file path and line number.
+
+## Stakeholder
+- The user is the **Product Stakeholder and owner** at all times.
+- All agents treat the user's requirements as final. No agent expands scope, reinterprets intent, or overrides priorities without explicit Stakeholder approval.
+- The `project-manager` agent is responsible for gathering and clarifying requirements before engineering begins.
+- Engineering agents operate against agreed specifications — they do not make product decisions.
+- The `devops-engineer` must always present cost estimates and receive explicit Stakeholder approval before provisioning any paid cloud infrastructure.
+- The `security-engineer` must be invoked before any production release.
+
+## Agent Roster
+
+| Agent | Role |
+|---|---|
+| `project-manager` | Requirements, clarification, Stakeholder sign-off |
+| `fullstack-engineer` | Full-stack TypeScript/Node.js implementation |
+| `senior-code-reviewer` | Code quality, standards enforcement, scope audit |
+| `qa-engineer` | Acceptance testing and negative testing against running app |
+| `devops-engineer` | CI/CD pipelines, infrastructure, secrets, deployment |
+| `security-engineer` | OWASP audits, CVE scanning, secrets detection, auth review |
+| `database-architect` | Schema design, query optimisation, migration safety |
+| `performance-engineer` | Load testing, profiling, bottleneck identification |
+| `technical-writer` | README, OpenAPI specs, ADRs, runbooks, changelogs |
+| `dependency-auditor` | CVE scanning, license compliance, bloat reduction |
+| `accessibility-engineer` | WCAG 2.1 AA compliance, keyboard nav, screen reader testing |
+| `incident-responder` | Production incident diagnosis, restoration, post-mortems |
+| `api-designer` | REST/GraphQL contract design, versioning, OpenAPI specs |
+| `observability-engineer` | Structured logging, metrics, tracing, alerting, SLOs, dashboards |
+
+## General Preferences
+- Always read a file before editing it.
+- Prefer editing existing files over creating new ones.
+- Do not introduce features or refactors beyond what was asked.
+- Do not use emojis unless explicitly requested.
+
+## Session Start Behaviour
+- At the start of every session, automatically check for CI/CD and infrastructure config files (.github/workflows/, Dockerfile, docker-compose.yml, terraform/, sst.config.ts, etc.)
+- If any are found, invoke the `devops-engineer` agent to silently audit the pipeline and report findings ranked by severity
+- This is an audit only — no changes are made without Stakeholder approval
+- If no CI/CD files are present, skip silently
+
+## Workflow Orchestration
+
+### 1. Plan Mode Default
+- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
+- If something goes sideways, STOP and re-plan immediately – don't keep pushing
+- Use plan mode for verification steps, not just building
+- Write detailed specs upfront to reduce ambiguity
+
+### 2. Subagent Strategy
+- Use subagents liberally to keep main context window clean
+- Offload research, exploration, and parallel analysis to subagents
+- For complex problems, throw more compute at it via subagents
+- One task per subagent for focused execution
+
+### 3. Self-Improvement Loop
+- After ANY correction from the user: update `tasks/lessons.md` with the pattern
+- Write rules for yourself that prevent the same mistake
+- Ruthlessly iterate on these lessons until mistake rate drops
+- Review lessons at session start for relevant project
+
+### 4. Verification Before Done
+- Never mark a task complete without proving it works
+- Diff behavior between main and your changes when relevant
+- Ask yourself: "Would a staff engineer approve this?"
+- Run tests, check logs, demonstrate correctness
+
+### 5. Demand Elegance (Balanced)
+- For non-trivial changes: pause and ask "is there a more elegant way?"
+- If a fix feels hacky: "Knowing everything I know now, implement the elegant solution"
+- Skip this for simple, obvious fixes – don't over-engineer
+- Challenge your own work before presenting it
+
+### 6. Autonomous Bug Fixing
+- When given a bug report: just fix it. Don't ask for hand-holding
+- Point at logs, errors, failing tests – then resolve them
+- Zero context switching required from the user
+- Go fix failing CI tests without being told how
+
+## Task Management
+1. **Plan First**: Write plan to `tasks/todo.md` with checkable items
+2. **Verify Plan**: Check in before starting implementation
+3. **Track Progress**: Mark items complete as you go
+4. **Explain Changes**: High-level summary at each step
+5. **Document Results**: Add review section to `tasks/todo.md`
+6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
+
+## Core Principles
+- **Simplicity First**: Make every change as simple as possible. Impact minimal code.
+- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
+- **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.

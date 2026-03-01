@@ -1,0 +1,10 @@
+# Cache and local state
+cache/
+*.local.json
+*.local.md
+
+# Plugin marketplace (third-party, not our config)
+plugins/
+
+# Settings may contain sensitive token info
+settings.json
