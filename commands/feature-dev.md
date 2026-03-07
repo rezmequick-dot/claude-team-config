@@ -1,5 +1,5 @@
 ---
-description: Full-cycle feature development — requirements through production deployment using the full 13-agent team
+description: Full-cycle feature development — requirements through production deployment using the full 14-agent team
 argument-hint: Describe the feature to build
 ---
 
