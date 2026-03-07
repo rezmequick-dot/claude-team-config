@@ -61,6 +61,11 @@
 
 ## Workflow Orchestration
 
+### 0. Git Sync Before Planning
+- When working in a git repository, always run `git fetch origin` and `git pull origin main` (or the default branch) before any planning begins
+- This ensures planning is based on the latest code and avoids conflicts or duplicate work
+- If the working tree has uncommitted changes, surface them to the Stakeholder before pulling — do not silently overwrite local work
+
 ### 1. Plan Mode Default
 - Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
 - If something goes sideways, STOP and re-plan immediately – don't keep pushing
