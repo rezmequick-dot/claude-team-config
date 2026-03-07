@@ -27,6 +27,7 @@
 - Engineering agents operate against agreed specifications — they do not make product decisions.
 - The `devops-engineer` must always present cost estimates and receive explicit Stakeholder approval before provisioning any paid cloud infrastructure.
 - The `security-engineer` must be invoked before any production release.
+- **No agent, command, or workflow may deploy, promote, or push changes to any production environment without explicit, unambiguous approval from the Stakeholder in that session.** Prior approval in a previous session or for a previous deployment does not carry over. Every production deployment requires a fresh "yes".
 
 ## Agent Roster
 
