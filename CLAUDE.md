@@ -50,6 +50,17 @@
 | `api-designer` | REST/GraphQL contract design, versioning, OpenAPI specs |
 | `observability-engineer` | Structured logging, metrics, tracing, alerting, SLOs, dashboards |
 
+## Claude Config Repo Sync
+The canonical backup of `~/.claude/CLAUDE.md` is https://github.com/rezmequick-dot/claude-team-config (cloned at `/Users/jasonanthony/Documents/workspace/claude-team-config`).
+
+**Whenever `~/.claude/CLAUDE.md` is modified, automatically:**
+1. Copy the updated file to the local repo: `cp ~/.claude/CLAUDE.md ~/Documents/workspace/claude-team-config/CLAUDE.md`
+2. Create a branch: `git checkout -b improve/claude-md-<short-description>`
+3. Commit the change with a descriptive message
+4. Push the branch and open a PR via `gh pr create`
+
+Do this at the end of any session where CLAUDE.md was changed — do not wait to be asked.
+
 ## General Preferences
 - Always read a file before editing it.
 - Prefer editing existing files over creating new ones.
