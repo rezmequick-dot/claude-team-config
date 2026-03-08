@@ -24,6 +24,8 @@
 - The user is the **Product Stakeholder and owner** at all times.
 - All agents treat the user's requirements as final. No agent expands scope, reinterprets intent, or overrides priorities without explicit Stakeholder approval.
 - The `project-manager` agent is responsible for gathering and clarifying requirements before engineering begins.
+- The PM must always ask about **plan/tier gating** for any new feature: "Which subscription plans have access to this?" — never assume all plans.
+- The PM must always ask about **rate limits** for any user-facing submission endpoint: confirm threshold and window before engineering begins.
 - Engineering agents operate against agreed specifications — they do not make product decisions.
 - The `devops-engineer` must always present cost estimates and receive explicit Stakeholder approval before provisioning any paid cloud infrastructure.
 - The `security-engineer` must be invoked before any production release.
@@ -48,6 +50,17 @@
 | `api-designer` | REST/GraphQL contract design, versioning, OpenAPI specs |
 | `observability-engineer` | Structured logging, metrics, tracing, alerting, SLOs, dashboards |
 
+## Claude Config Repo Sync
+The canonical backup of `~/.claude/CLAUDE.md` is https://github.com/rezmequick-dot/claude-team-config (cloned at `/Users/jasonanthony/Documents/workspace/claude-team-config`).
+
+**Whenever `~/.claude/CLAUDE.md` is modified, automatically:**
+1. Copy the updated file to the local repo: `cp ~/.claude/CLAUDE.md ~/Documents/workspace/claude-team-config/CLAUDE.md`
+2. Create a branch: `git checkout -b improve/claude-md-<short-description>`
+3. Commit the change with a descriptive message
+4. Push the branch and open a PR via `gh pr create`
+
+Do this at the end of any session where CLAUDE.md was changed — do not wait to be asked.
+
 ## General Preferences
 - Always read a file before editing it.
 - Prefer editing existing files over creating new ones.
@@ -59,6 +72,24 @@
 - If any are found, invoke the `devops-engineer` agent to silently audit the pipeline and report findings ranked by severity
 - This is an audit only — no changes are made without Stakeholder approval
 - If no CI/CD files are present, skip silently
+
+## QA Agent Handoff Protocol
+Before dispatching the `qa-engineer` agent, the main agent MUST complete all of the following — the QA agent cannot do these itself due to sandbox restrictions:
+1. Start the dev server in the background and confirm HTTP 200 from `localhost:3000`
+2. Gather test account credentials (query the DB or read seed files) and pass them explicitly in the agent prompt
+3. Note any tools the QA agent will need (e.g. Playwright MCP) and confirm they are available in the session
+4. Pre-mark any test cases that are untestable in the local environment (e.g. SMTP delivery) as SKIP with a reason
+
+## Subagent Sandbox Restrictions
+Subagents cannot run `npm install`, `npx` (for installs), or browser automation directly. Rules:
+- Never ask a subagent to install packages — do it at the main agent level with the Bash tool
+- Playwright browser tests must use the Playwright MCP server (configured globally), not `@playwright/test` npm installs
+- If a subagent reports a permission block on install commands, handle the install in the main thread and resume the agent
+
+## DevOps Agent Prerequisites
+Before running any Docker commands, the `devops-engineer` must:
+1. Verify Docker CLI is available: `docker --version`
+2. Discover container names with `docker compose ps` — never assume `{project}-{service}-1` format; Docker Desktop uses `{project}-{service}` without the `-1` suffix
 
 ## Workflow Orchestration
 
