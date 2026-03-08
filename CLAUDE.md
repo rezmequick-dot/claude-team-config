@@ -49,6 +49,7 @@
 | `technical-writer` | README, OpenAPI specs, ADRs, runbooks, changelogs |
 | `dependency-auditor` | CVE scanning, license compliance, bloat reduction |
 | `accessibility-engineer` | WCAG 2.1 AA compliance, keyboard nav, screen reader testing |
+| `ui-ux-engineer` | Visual design conformance — spacing, typography, colour tokens, responsive layout against design specs |
 | `incident-responder` | Production incident diagnosis, restoration, post-mortems |
 | `api-designer` | REST/GraphQL contract design, versioning, OpenAPI specs |
 | `observability-engineer` | Structured logging, metrics, tracing, alerting, SLOs, dashboards |
