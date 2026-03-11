@@ -65,6 +65,18 @@ The canonical backup of `~/.claude/CLAUDE.md` is https://github.com/rezmequick-d
 
 Do this at the end of any session where CLAUDE.md was changed — do not wait to be asked.
 
+## Semantic Code Search (CocoIndex MCP)
+An MCP server (`cocoindex-search`) is always available with three tools:
+- `index_project(path)` — index a project directory (run once per project, re-run after major changes)
+- `search_code(query, project_path?, limit?)` — semantic search over indexed code
+- `list_indexed_projects()` — show what's been indexed
+
+**Rules:**
+- Before using Glob or Grep to explore a codebase that has been indexed, call `search_code` first with a natural-language query. Only fall back to Glob/Grep if search results are insufficient.
+- If the user starts working on a new project directory that isn't yet indexed, offer to run `index_project` for it.
+- Prefer targeted `search_code` calls over reading entire files. Read files only to see specific sections identified by search results.
+- `search_code` returns file paths and line numbers — use those to read only the relevant sections with the `Read` tool's `offset`/`limit` parameters.
+
 ## General Preferences
 - Always read a file before editing it.
 - Prefer editing existing files over creating new ones.
