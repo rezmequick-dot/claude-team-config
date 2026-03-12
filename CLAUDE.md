@@ -55,15 +55,29 @@
 | `observability-engineer` | Structured logging, metrics, tracing, alerting, SLOs, dashboards |
 
 ## Claude Config Repo Sync
-The canonical backup of `~/.claude/CLAUDE.md` is https://github.com/rezmequick-dot/claude-team-config (cloned at `/Users/jasonanthony/Documents/workspace/claude-team-config`).
+The canonical source of truth for all Claude config is https://github.com/rezmequick-dot/claude-team-config (cloned at `/Users/jasonanthony/Documents/workspace/claude-team-config`).
 
-**Whenever `~/.claude/CLAUDE.md` is modified, automatically:**
-1. Copy the updated file to the local repo: `cp ~/.claude/CLAUDE.md ~/Documents/workspace/claude-team-config/CLAUDE.md`
-2. Create a branch: `git checkout -b improve/claude-md-<short-description>`
+This covers three files/directories:
+- `~/.claude/CLAUDE.md` ↔ `claude-team-config/CLAUDE.md`
+- `~/.claude/agents/*.md` ↔ `claude-team-config/agents/*.md`
+- `~/.claude/commands/*.md` ↔ `claude-team-config/commands/*.md`
+
+**Whenever any of these are modified locally, automatically sync to the repo:**
+1. Copy changed files to the local repo:
+   - `cp ~/.claude/CLAUDE.md ~/Documents/workspace/claude-team-config/CLAUDE.md`
+   - `cp ~/.claude/agents/*.md ~/Documents/workspace/claude-team-config/agents/`
+   - `cp ~/.claude/commands/*.md ~/Documents/workspace/claude-team-config/commands/`
+2. Create a branch: `git checkout -b improve/<short-description>`
 3. Commit the change with a descriptive message
 4. Push the branch and open a PR via `gh pr create`
 
-Do this at the end of any session where CLAUDE.md was changed — do not wait to be asked.
+**Whenever the config repo is updated (PR merged, `git pull`):**
+1. Copy all files back to `~/.claude`:
+   - `cp ~/Documents/workspace/claude-team-config/CLAUDE.md ~/.claude/CLAUDE.md`
+   - `cp ~/Documents/workspace/claude-team-config/agents/*.md ~/.claude/agents/`
+   - `cp ~/Documents/workspace/claude-team-config/commands/*.md ~/.claude/commands/`
+
+Do this at the end of any session where any config file was changed — do not wait to be asked.
 
 ## Semantic Code Search (CocoIndex MCP)
 An MCP server (`cocoindex-search`) is always available with three tools:
