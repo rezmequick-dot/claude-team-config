@@ -77,6 +77,47 @@ await expect(page.getByTestId('result-list')).not.toBeEmpty()
 
 ---
 
+## Responsive Layout Testing
+
+For any feature that touches the UI, **always test at three viewport sizes**:
+
+| Viewport | Width | Represents |
+|---|---|---|
+| Mobile | 375px | Single-column, tab-based layouts, `md:hidden` elements visible |
+| Tablet | 768px | Transition breakpoint — verify layout shift is correct |
+| Desktop | 1280px | Side-by-side panels, `hidden md:*` elements visible, `md:hidden` elements hidden |
+
+```ts
+// Set viewport before navigating
+await page.setViewportSize({ width: 375, height: 812 });   // mobile
+await page.setViewportSize({ width: 768, height: 1024 });  // tablet
+await page.setViewportSize({ width: 1280, height: 900 });  // desktop
+```
+
+### Duplicate Interactive Element Check
+
+Whenever a feature uses **conditional visibility classes** (`md:hidden`, `hidden md:inline-flex`, `tablet-lg:block`, etc.) on buttons, links, or CTAs, you **must** verify the rendered count at each breakpoint — not just that the element exists.
+
+This catches the class of bug where a CTA appears in multiple places (e.g., a sticky header, an onboarding widget, and an in-panel empty state) and the responsive classes fail to suppress the duplicates correctly.
+
+```ts
+// Assert exactly N instances of a CTA at this viewport
+const links = page.getByRole('link', { name: 'Add a Property' });
+expect(await links.count()).toBe(1); // or 2, depending on layout
+
+// Assert a mobile-only element is hidden on desktop
+await page.setViewportSize({ width: 1280, height: 900 });
+await expect(page.getByRole('link', { name: 'Next: Add a Property' })).not.toBeVisible();
+
+// Assert a desktop-only element is hidden on mobile
+await page.setViewportSize({ width: 375, height: 812 });
+await expect(page.getByRole('link', { name: 'Add a Property' }).first()).not.toBeVisible();
+```
+
+**Rule:** Never use `toBeGreaterThanOrEqual(1)` for CTA count assertions — always assert the exact expected count. A lenient count check masks duplicate regressions.
+
+---
+
 ## Backend API Testing (cURL)
 
 Use `curl` for all API testing. Always include headers explicitly. Always capture response body and status code.
