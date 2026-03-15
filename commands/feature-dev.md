@@ -125,7 +125,17 @@ Consolidate all findings by severity. Present to the Stakeholder. Fix loops:
 Launch the following agents in parallel as applicable:
 
 1. **Always** → `qa-engineer`:
-   - Prompt: "Start the application locally. Validate all acceptance criteria from the approved spec. Run full negative testing. Deliver a structured test report with verdict."
+   - Gather before dispatching:
+     - Test account credentials (query the DB or read seed/spec files — pass them explicitly in the prompt). **Do this with a single targeted query — do not explore the DB schema broadly.**
+     - The Playwright config path and any test-specific env vars
+     - Any acceptance criteria that are untestable locally (e.g. SMTP, webhooks) — pre-mark these as SKIP with a reason in the prompt
+   - Prompt: "Start the dev server with `npm run dev` from the project root if it is not already responding at `http://localhost:3000`. Confirm HTTP 200 before running any tests. Validate all acceptance criteria from the approved spec against the running application. Run full negative testing. When all tests are complete, stop the dev server. Deliver a structured test report with PASS / FAIL / SKIP per criterion.
+
+     **Execution rules to minimise token usage:**
+     - Run Playwright tests using `npx playwright test --reporter=line` with inline `--grep` filters. Do NOT write spec files to disk unless a persistent suite is explicitly requested.
+     - Use `page.evaluate()` to inspect DOM state and localStorage directly rather than writing assertion helpers.
+     - If a test fails, read the error once, fix the assertion or selector, and retry exactly once. If it fails again, mark FAIL and move on — do not loop.
+     - Do not re-test criteria that were already marked PASS in a prior run unless the related code changed."
 
 2. **If the feature includes frontend/UI changes** → `accessibility-engineer`:
    - Prompt: "Audit the changed UI components and pages for WCAG 2.1 AA compliance. Run automated axe-core checks via Playwright. Check keyboard navigation, focus management, colour contrast, and ARIA usage."

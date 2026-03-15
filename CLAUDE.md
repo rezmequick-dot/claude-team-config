@@ -55,15 +55,41 @@
 | `observability-engineer` | Structured logging, metrics, tracing, alerting, SLOs, dashboards |
 
 ## Claude Config Repo Sync
-The canonical backup of `~/.claude/CLAUDE.md` is https://github.com/rezmequick-dot/claude-team-config (cloned at `/Users/jasonanthony/Documents/workspace/claude-team-config`).
+The canonical source of truth for all Claude config is https://github.com/rezmequick-dot/claude-team-config (cloned at `/Users/jasonanthony/Documents/workspace/claude-team-config` on Mac, `C:/Users/antho/Documents/workspace/claude-team-config` on Windows).
 
-**Whenever `~/.claude/CLAUDE.md` is modified, automatically:**
-1. Copy the updated file to the local repo: `cp ~/.claude/CLAUDE.md ~/Documents/workspace/claude-team-config/CLAUDE.md`
-2. Create a branch: `git checkout -b improve/claude-md-<short-description>`
+This covers three files/directories:
+- `~/.claude/CLAUDE.md` ↔ `claude-team-config/CLAUDE.md`
+- `~/.claude/agents/*.md` ↔ `claude-team-config/agents/*.md`
+- `~/.claude/commands/*.md` ↔ `claude-team-config/commands/*.md`
+
+**Whenever any of these are modified locally, automatically sync to the repo:**
+1. Copy changed files to the local repo:
+   - `cp ~/.claude/CLAUDE.md ~/Documents/workspace/claude-team-config/CLAUDE.md`
+   - `cp ~/.claude/agents/*.md ~/Documents/workspace/claude-team-config/agents/`
+   - `cp ~/.claude/commands/*.md ~/Documents/workspace/claude-team-config/commands/`
+2. Create a branch: `git checkout -b improve/<short-description>`
 3. Commit the change with a descriptive message
 4. Push the branch and open a PR via `gh pr create`
 
-Do this at the end of any session where CLAUDE.md was changed — do not wait to be asked.
+**Whenever the config repo is updated (PR merged, `git pull`):**
+1. Copy all files back to `~/.claude`:
+   - `cp ~/Documents/workspace/claude-team-config/CLAUDE.md ~/.claude/CLAUDE.md`
+   - `cp ~/Documents/workspace/claude-team-config/agents/*.md ~/.claude/agents/`
+   - `cp ~/Documents/workspace/claude-team-config/commands/*.md ~/.claude/commands/`
+
+Do this at the end of any session where any config file was changed — do not wait to be asked.
+
+## Semantic Code Search (CocoIndex MCP)
+An MCP server (`cocoindex-search`) is always available with three tools:
+- `index_project(path)` — index a project directory (run once per project, re-run after major changes)
+- `search_code(query, project_path?, limit?)` — semantic search over indexed code
+- `list_indexed_projects()` — show what's been indexed
+
+**Rules:**
+- Before using Glob or Grep to explore a codebase that has been indexed, call `search_code` first with a natural-language query. Only fall back to Glob/Grep if search results are insufficient.
+- If the user starts working on a new project directory that isn't yet indexed, offer to run `index_project` for it.
+- Prefer targeted `search_code` calls over reading entire files. Read files only to see specific sections identified by search results.
+- `search_code` returns file paths and line numbers — use those to read only the relevant sections with the `Read` tool's `offset`/`limit` parameters.
 
 ## Semantic Code Search (CocoIndex MCP)
 An MCP server (`cocoindex-search`) is always available with three tools:
@@ -90,11 +116,17 @@ An MCP server (`cocoindex-search`) is always available with three tools:
 - If no CI/CD files are present, skip silently
 
 ## QA Agent Handoff Protocol
-Before dispatching the `qa-engineer` agent, the main agent MUST complete all of the following — the QA agent cannot do these itself due to sandbox restrictions:
-1. Start the dev server in the background and confirm HTTP 200 from `localhost:3000`
-2. Gather test account credentials (query the DB or read seed files) and pass them explicitly in the agent prompt
-3. Note any tools the QA agent will need (e.g. Playwright MCP) and confirm they are available in the session
-4. Pre-mark any test cases that are untestable in the local environment (e.g. SMTP delivery) as SKIP with a reason
+The `qa-engineer` agent is responsible for starting and stopping the dev server itself. The main agent MUST prepare the following before dispatching:
+1. Gather test account credentials with a **single targeted DB query** (e.g. `SELECT email FROM Users WHERE role='admin' LIMIT 3`) — do not let the agent explore the DB schema broadly
+2. Note any tools the QA agent will need (e.g. Playwright MCP) and confirm they are available in the session
+3. Pre-mark any test cases that are untestable in the local environment (e.g. SMTP delivery) as SKIP with a reason
+4. Include in the QA prompt: "Start the dev server with `npm run dev` from the project root if it is not already responding at `http://localhost:3000`. Confirm HTTP 200 before running any tests. Stop the dev server when all tests are complete."
+
+**QA execution rules (include in every QA prompt):**
+- Run tests using Playwright MCP tools directly — do NOT write spec files to disk
+- Inspect DOM state and localStorage via `page.evaluate()` rather than writing helper utilities
+- If a test fails, read the error once, adjust the selector or assertion, and retry once. If it fails again, mark FAIL and continue — no further retries
+- Do not re-test criteria already marked PASS unless the related code changed in this session
 
 ## Subagent Sandbox Restrictions
 Subagents cannot run `npm install`, `npx` (for installs), or browser automation directly. Rules:
