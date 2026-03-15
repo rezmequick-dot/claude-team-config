@@ -67,19 +67,18 @@ Feature request: $ARGUMENTS
 
 ## Phase 3: Implementation
 
-**Goal**: Build the feature to production standards on a dedicated feature branch.
+**Goal**: Build the feature to production standards.
 
 **Actions**:
-1. Create a feature branch: `git checkout -b feature/<short-description>` before any implementation begins
-2. Launch the `fullstack-engineer` agent with:
+1. Launch the `fullstack-engineer` agent with:
    - The full approved spec (Phase 0)
    - The approved API contract / OpenAPI spec (Phase 0, if applicable)
    - The approved architecture approach (Phase 2)
    - The approved schema design (Phase 2, if applicable)
    - Key files and patterns from Phase 1
    - Standards: strict TypeScript, tests for all new behaviour, ESLint-clean, no `any`, meaningful error handling
-3. Read all files modified by the agent
-4. Update todos as implementation progresses
+2. Read all files modified by the agent
+3. Update todos as implementation progresses
 
 ---
 
@@ -104,60 +103,56 @@ Consolidate all findings by severity. Present to the Stakeholder. Fix loops:
 
 ---
 
-## Phase 5: Performance Validation
+## Phase 5: Security Audit
 
-**Goal**: Validate the feature under realistic load before security and QA — catching bottlenecks while the code is still easy to change.
-
-**Actions**:
-1. **If the feature is performance-sensitive** (high-traffic endpoint, data-heavy operation, new background job, new query path) → launch `performance-engineer`:
-   - Prompt: "Profile the new feature under realistic load. Establish a baseline, run load tests against the locally running application, identify bottlenecks, and compare against the performance budget thresholds. Report any response time regressions or resource leaks."
-2. Findings:
-   - **Breach** — hand to `fullstack-engineer` or `database-architect` for optimisation, then re-test. Do not proceed until within budget.
-   - **Pass** — proceed to security audit
-3. If the feature is not performance-sensitive, skip this phase and proceed directly to Phase 6.
-
----
-
-## Phase 6: Security Audit
-
-**Goal**: Catch exploitable vulnerabilities before they reach QA or production.
+**Goal**: Catch exploitable vulnerabilities before they reach production.
 
 **Actions**:
 1. Launch the `security-engineer` agent:
    - Prompt: "Perform a security audit of all files changed in this feature. Check: OWASP Top 10 for the affected code paths, auth and authorisation correctness, input validation, secrets handling, new dependency CVEs, and any new API endpoints for injection or access control issues."
 2. Findings by severity:
-   - **Critical/High** — must be fixed before proceeding. Loop: `fullstack-engineer` fixes → re-audit changed files only.
-   - **Medium/Low** — present to Stakeholder, ask whether to fix now or log as a known accepted risk
+   - **Critical/High** — must be fixed before proceeding. Loop back to `fullstack-engineer`, then re-audit changed files.
+   - **Medium/Low** — present to Stakeholder, ask whether to fix now or log as a known issue
 3. **Do not proceed to QA with any unresolved Critical or High findings**
 
 ---
 
-## Phase 7: Specialised Validation
+## Phase 6: Specialised Validation
 
-**Goal**: Validate the running application against acceptance criteria, accessibility requirements, and visual design conformance.
+**Goal**: Validate the running application across functional, accessibility, and performance dimensions.
 
 **Actions**:
 Launch the following agents in parallel as applicable:
 
 1. **Always** → `qa-engineer`:
-   - Prompt: "Start the application locally. Validate all acceptance criteria from the approved spec. Run full negative testing. Deliver a structured test report with verdict."
+   - Gather before dispatching:
+     - Test account credentials (query the DB or read seed/spec files — pass them explicitly in the prompt). **Do this with a single targeted query — do not explore the DB schema broadly.**
+     - The Playwright config path and any test-specific env vars
+     - Any acceptance criteria that are untestable locally (e.g. SMTP, webhooks) — pre-mark these as SKIP with a reason in the prompt
+   - Prompt: "Start the dev server with `npm run dev` from the project root if it is not already responding at `http://localhost:3000`. Confirm HTTP 200 before running any tests. Validate all acceptance criteria from the approved spec against the running application. Run full negative testing. When all tests are complete, stop the dev server. Deliver a structured test report with PASS / FAIL / SKIP per criterion.
+
+     **Execution rules to minimise token usage:**
+     - Run Playwright tests using `npx playwright test --reporter=line` with inline `--grep` filters. Do NOT write spec files to disk unless a persistent suite is explicitly requested.
+     - Use `page.evaluate()` to inspect DOM state and localStorage directly rather than writing assertion helpers.
+     - If a test fails, read the error once, fix the assertion or selector, and retry exactly once. If it fails again, mark FAIL and move on — do not loop.
+     - Do not re-test criteria that were already marked PASS in a prior run unless the related code changed."
 
 2. **If the feature includes frontend/UI changes** → `accessibility-engineer`:
    - Prompt: "Audit the changed UI components and pages for WCAG 2.1 AA compliance. Run automated axe-core checks via Playwright. Check keyboard navigation, focus management, colour contrast, and ARIA usage."
 
-3. **If the feature includes frontend/UI changes** → `ui-ux-engineer`:
-   - Prompt: "Audit the changed pages and components for visual design conformance. Using Playwright, capture screenshots at mobile (375px), tablet (768px), and desktop (1280px) breakpoints. Check: spacing and padding consistency against established patterns in the codebase, typography scale, colour token usage, component alignment, and responsive layout behaviour. Reference the Tailwind config and existing components as the design baseline. Report deviations by severity with annotated screenshots where possible."
+3. **If the feature is performance-sensitive** (high-traffic endpoint, data-heavy operation, new background job) → `performance-engineer`:
+   - Prompt: "Profile the new feature under realistic load. Establish a baseline, run load tests against the locally running application, identify bottlenecks, and compare against the performance budget thresholds."
 
 Consolidate all results. Fix loops:
-- QA FAIL → `fullstack-engineer` fixes → `senior-code-reviewer` re-reviews changed files → `security-engineer` re-audits changed files → re-run failed QA checks
+- QA FAIL → `fullstack-engineer` fixes → `senior-code-reviewer` re-reviews changed files → re-run failed QA checks
 - Accessibility Critical → `fullstack-engineer` fixes → re-run accessibility audit on changed components
-- UI/UX Critical (broken layout, missing spacing, wrong breakpoint behaviour) → `fullstack-engineer` fixes → re-run UI/UX audit on changed components
+- Performance breach → `fullstack-engineer` or `database-architect` optimises → re-test
 
-**Do not proceed to observability or deployment until QA verdict is PASS or CONDITIONAL PASS**
+**Do not proceed to documentation or deployment until QA verdict is PASS or CONDITIONAL PASS**
 
 ---
 
-## Phase 8: Observability
+## Phase 7: Observability
 
 **Goal**: Ensure the feature is fully visible in production before it ships.
 
@@ -169,7 +164,7 @@ Consolidate all results. Fix loops:
 
 ---
 
-## Phase 9: Documentation
+## Phase 8: Documentation
 
 **Goal**: Ensure the feature is fully documented before it ships.
 
@@ -181,29 +176,23 @@ Consolidate all results. Fix loops:
 
 ---
 
-## Phase 10: Deployment
+## Phase 8: Deployment
 
-**Goal**: Open a PR, merge it, and get the validated, documented feature deployed through the CI/CD pipeline.
+**Goal**: Get the validated, documented feature deployed through the CI/CD pipeline.
 
 **Actions**:
-1. Create the pull request against the main branch:
-   - Use `gh pr create` with a title and body that includes: what was built (linked to the Azure DevOps feature), files changed, API changes, data model changes, security findings resolved, QA verdict, and any known accepted risks
-   - Assign reviewers if required by the project's merge policy
-   - **The PR is a required output of every feature. Do not skip this step.**
-2. Once the PR is approved and all CI checks pass, merge it
-3. Launch the `devops-engineer` agent:
-   - Prompt: "Feature has passed all reviews, performance validation, security audit, QA, and documentation. PR has been merged. Changed files: [list]. Review for new env vars, secrets, or infrastructure requirements. If paid resources are needed, present cost estimate to Stakeholder before acting. Deploy to staging, run smoke tests, report result. Do not deploy to production without explicit Stakeholder approval."
-4. If new infrastructure or secrets are required:
+1. Launch the `devops-engineer` agent:
+   - Prompt: "Feature has passed all reviews, QA, security, and documentation. Changed files: [list]. Review for new env vars, secrets, or infrastructure requirements. If paid resources are needed, present cost estimate to Stakeholder before acting. Deploy to staging, run smoke tests, report result. Do not deploy to production without explicit Stakeholder approval."
+2. If new infrastructure or secrets are required:
    - Present cost estimate to the Stakeholder
    - **Wait for explicit approval before provisioning**
-5. Confirm staging deployment is healthy
-6. Present staging result to Stakeholder and ask for production approval
-7. Confirm production deployment and smoke test result
-8. **Only after confirmed production deployment**: update the corresponding Azure DevOps work items to Closed state. Do not close tickets during QA, after staging, or for any reason short of confirmed production deployment.
+3. Confirm staging deployment is healthy
+4. Present staging result to Stakeholder and ask for production approval
+5. Confirm production deployment and smoke test result
 
 ---
 
-## Phase 11: Summary
+## Phase 9: Summary
 
 **Goal**: Close out the workflow with a complete delivery record.
 
@@ -215,12 +204,10 @@ Consolidate all results. Fix loops:
    - **API changes** — new/changed endpoints, OpenAPI spec location
    - **Data model changes** — migrations run, schema changes
    - **Code review** — findings and resolutions
-   - **Performance** — benchmark results (if tested), pass/breach status
    - **Security audit** — findings and resolutions
    - **QA verdict** — acceptance criteria results, negative test results
    - **Accessibility** — compliance status (if audited)
+   - **Performance** — benchmark results (if tested)
    - **Documentation** — what was written and where
-   - **Pull request** — PR URL, merge status
    - **Deployment** — staging/production status, infrastructure changes, cost impact
-   - **Azure DevOps** — work items closed (list IDs and titles)
    - **Next steps** — follow-up features, known deferred issues, monitoring recommendations
