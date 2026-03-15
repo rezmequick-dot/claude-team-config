@@ -21,7 +21,16 @@ Feature request: $ARGUMENTS
 
 **Actions**:
 1. Create a todo list covering all phases
-2. Launch the `project-manager` agent:
+2. **If $ARGUMENTS references an ADO ticket number** (e.g. "ADO #85", "ticket 85", "task 85") — extract the ticket ID and immediately update it via the ADO REST API:
+   - Set state to `Active`
+   - Assign to the current user (read assignee from `.env` as `AZURE_DEVOPS_USER_EMAIL`, or leave assigned-to unchanged if the var is absent)
+   - Use the PAT from `.env` as `AZURE_DEVOPS_AUTH_TOKEN`, org `applicationIngenuity`, project `Sarah Sweeps`
+   - API: `PATCH https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems/{id}?api-version=7.1`
+   - Body: `[{"op":"add","path":"/fields/System.State","value":"Active"},{"op":"add","path":"/fields/System.AssignedTo","value":"<email>"}]`
+   - Content-Type: `application/json-patch+json`
+   - Use Node.js `https` module with `Buffer.from(':' + token).toString('base64')` for auth — do not shell out to curl
+   - Log the HTTP status; if it fails, warn the Stakeholder and continue (do not block on ADO update failure)
+3. Launch the `project-manager` agent:
    - Prompt: "The Stakeholder has requested: $ARGUMENTS. Explore the codebase for context, identify all ambiguities, ask clarifying questions, and produce a complete requirements spec with functional requirements and testable acceptance criteria."
 3. From the approved spec, identify what contracts are needed. Launch in parallel as applicable:
    - **If the feature introduces or changes API endpoints** → launch `api-designer`:
