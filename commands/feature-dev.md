@@ -21,7 +21,23 @@ Feature request: $ARGUMENTS
 
 **Actions**:
 1. Create a todo list covering all phases
-2. Launch the `project-manager` agent:
+2. **If $ARGUMENTS references an ADO ticket number** (e.g. "ADO #85", "ticket 85", "task 85") — extract the ticket ID and immediately update it via the ADO REST API:
+   - Set state to `Active`
+   - Assign to the current user (read assignee from `.env` as `AZURE_DEVOPS_USER_EMAIL`, or leave assigned-to unchanged if the var is absent)
+   - Use the PAT from `.env` as `AZURE_DEVOPS_AUTH_TOKEN`, org `applicationIngenuity`, project `Sarah Sweeps`
+   - API: `PATCH https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems/{id}?api-version=7.1`
+   - Body: `[{"op":"add","path":"/fields/System.State","value":"Active"},{"op":"add","path":"/fields/System.AssignedTo","value":"<email>"}]`
+   - Content-Type: `application/json-patch+json`
+   - Use Node.js `https` module with `Buffer.from(':' + token).toString('base64')` for auth — do not shell out to curl
+   - Log the HTTP status; if it fails, warn the Stakeholder and continue (do not block on ADO update failure)
+3. **Create a feature branch before any files are touched**:
+   - Derive a branch name from the ticket or feature description:
+     - If an ADO ticket number was found: `feature/ado-{id}-{short-slug}` (e.g. `feature/ado-89-terms-page`)
+     - Otherwise: `feature/{short-slug}` derived from $ARGUMENTS
+   - Run: `git checkout main && git pull origin main && git checkout -b <branch-name>`
+   - Confirm the branch was created and is now the active branch before proceeding
+   - **All subsequent file changes and commits must happen on this branch — never on main**
+4. Launch the `project-manager` agent:
    - Prompt: "The Stakeholder has requested: $ARGUMENTS. Explore the codebase for context, identify all ambiguities, ask clarifying questions, and produce a complete requirements spec with functional requirements and testable acceptance criteria."
 3. From the approved spec, identify what contracts are needed. Launch in parallel as applicable:
    - **If the feature introduces or changes API endpoints** → launch `api-designer`:
@@ -140,7 +156,17 @@ Consolidate all findings by severity. Present to the Stakeholder. Fix loops:
 Launch the following agents in parallel as applicable:
 
 1. **Always** → `qa-engineer`:
-   - Prompt: "Start the application locally. Validate all acceptance criteria from the approved spec. Run full negative testing. Deliver a structured test report with verdict."
+   - Gather before dispatching:
+     - Test account credentials (query the DB or read seed/spec files — pass them explicitly in the prompt). **Do this with a single targeted query — do not explore the DB schema broadly.**
+     - The Playwright config path and any test-specific env vars
+     - Any acceptance criteria that are untestable locally (e.g. SMTP, webhooks) — pre-mark these as SKIP with a reason in the prompt
+   - Prompt: "Start the dev server with `npm run dev` from the project root if it is not already responding at `http://localhost:3000`. Confirm HTTP 200 before running any tests. Validate all acceptance criteria from the approved spec against the running application. Run full negative testing. When all tests are complete, stop the dev server. Deliver a structured test report with PASS / FAIL / SKIP per criterion.
+
+     **Execution rules to minimise token usage:**
+     - Run Playwright tests using `npx playwright test --reporter=line` with inline `--grep` filters. Do NOT write spec files to disk unless a persistent suite is explicitly requested.
+     - Use `page.evaluate()` to inspect DOM state and localStorage directly rather than writing assertion helpers.
+     - If a test fails, read the error once, fix the assertion or selector, and retry exactly once. If it fails again, mark FAIL and move on — do not loop.
+     - Do not re-test criteria that were already marked PASS in a prior run unless the related code changed."
 
 2. **If the feature includes frontend/UI changes** → `accessibility-engineer`:
    - Prompt: "Audit the changed UI components and pages for WCAG 2.1 AA compliance. Run automated axe-core checks via Playwright. Check keyboard navigation, focus management, colour contrast, and ARIA usage."

@@ -57,7 +57,7 @@
 | `observability-engineer` | Structured logging, metrics, tracing, alerting, SLOs, dashboards |
 
 ## Claude Config Repo Sync
-The canonical source of truth for all Claude config is https://github.com/rezmequick-dot/claude-team-config (cloned at `/Users/jasonanthony/Documents/workspace/claude-team-config`).
+The canonical source of truth for all Claude config is https://github.com/rezmequick-dot/claude-team-config (cloned at `/Users/jasonanthony/Documents/workspace/claude-team-config` on Mac, `C:/Users/antho/Documents/workspace/claude-team-config` on Windows).
 
 This covers three files/directories:
 - `~/.claude/CLAUDE.md` ↔ `claude-team-config/CLAUDE.md`
@@ -106,11 +106,17 @@ An MCP server (`cocoindex-search`) is always available with three tools:
 - If no CI/CD files are present, skip silently
 
 ## QA Agent Handoff Protocol
-Before dispatching the `qa-engineer` agent, the main agent MUST complete all of the following — the QA agent cannot do these itself due to sandbox restrictions:
-1. Start the dev server in the background and confirm HTTP 200 from `localhost:3000`
-2. Gather test account credentials (query the DB or read seed files) and pass them explicitly in the agent prompt
-3. Note any tools the QA agent will need (e.g. Playwright MCP) and confirm they are available in the session
-4. Pre-mark any test cases that are untestable in the local environment (e.g. SMTP delivery) as SKIP with a reason
+The `qa-engineer` agent is responsible for starting and stopping the dev server itself. The main agent MUST prepare the following before dispatching:
+1. Gather test account credentials with a **single targeted DB query** (e.g. `SELECT email FROM Users WHERE role='admin' LIMIT 3`) — do not let the agent explore the DB schema broadly
+2. Note any tools the QA agent will need (e.g. Playwright MCP) and confirm they are available in the session
+3. Pre-mark any test cases that are untestable in the local environment (e.g. SMTP delivery) as SKIP with a reason
+4. Include in the QA prompt: "Start the dev server with `npm run dev` from the project root if it is not already responding at `http://localhost:3000`. Confirm HTTP 200 before running any tests. Stop the dev server when all tests are complete."
+
+**QA execution rules (include in every QA prompt):**
+- Run tests using Playwright MCP tools directly — do NOT write spec files to disk
+- Inspect DOM state and localStorage via `page.evaluate()` rather than writing helper utilities
+- If a test fails, read the error once, adjust the selector or assertion, and retry once. If it fails again, mark FAIL and continue — no further retries
+- Do not re-test criteria already marked PASS unless the related code changed in this session
 
 ## Subagent Sandbox Restrictions
 Subagents cannot run `npm install`, `npx` (for installs), or browser automation directly. Rules:
