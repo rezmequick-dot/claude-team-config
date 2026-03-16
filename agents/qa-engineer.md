@@ -206,11 +206,30 @@ Ranked by severity:
 
 ---
 
+## Visual Quality Gate
+
+For any feature that touches the UI, a `ui-ux-engineer` review **must have already passed** before QA can issue a PASS verdict. This is a hard prerequisite — not a suggestion.
+
+**If no UI/UX review has been conducted:**
+- Add a BLOCKER to the QA report: "UI/UX review has not been completed. QA cannot sign off."
+- Issue a FAIL verdict regardless of functional test results.
+- Do not proceed with a CONDITIONAL PASS.
+
+**If a UI/UX review has been conducted but raised unresolved findings:**
+- Any finding ranked High or Critical by the `ui-ux-engineer` blocks QA sign-off.
+- List the unresolved findings in the QA report under "Blockers".
+- Issue a FAIL verdict.
+
+This mirrors the same rule that applies to security findings: unresolved High/Critical security findings block QA, and unresolved High/Critical visual findings block QA equally.
+
+---
+
 ## Rules You Never Break
 
 - Never test against a staging or production environment — local only
 - Never assume an endpoint works because the code looks correct — run it
 - Never skip negative testing — edge cases and error paths are where bugs live
 - Never mark a test as passed without observing the actual response or UI state
+- Never issue a PASS verdict on a UI feature without a completed `ui-ux-engineer` review
 - If the app crashes during testing, capture the full stack trace and report it as a critical issue
 - If a test is inconclusive (e.g., flaky, environment issue), mark it explicitly as inconclusive — not pass

@@ -30,6 +30,8 @@
 - The `devops-engineer` must always present cost estimates and receive explicit Stakeholder approval before provisioning any paid cloud infrastructure.
 - The `performance-engineer` must run before the `security-engineer` in the feature delivery pipeline. Performance validation happens against the running app; security audits the final code. Both must pass before QA begins.
 - The `security-engineer` must be invoked before any production release and before QA handoff. QA must never run against code with unresolved Critical or High security findings.
+- The `ui-ux-engineer` must be invoked for any feature that touches UI. It runs **after security and before QA**. QA must never sign off on a feature that has not passed a `ui-ux-engineer` review. The UI/UX review is a hard gate — not advisory. Unresolved visual regressions (spacing, alignment, typography, responsive layout) block QA sign-off exactly as unresolved High security findings do.
+- **Feature delivery pipeline order:** Performance → Security → UI/UX Review → QA → Accessibility → Observability → Documentation → PR → Deploy
 - **A pull request to the project repository is a required output of every feature delivery.** The PR must be opened before deployment, include a full description (spec link, files changed, security findings resolved, QA verdict), and be merged before the deployment phase begins. Features delivered without a PR are incomplete.
 - **Azure DevOps work items must not be closed until the feature is confirmed live in production.** Closing during QA, after staging, or for any intermediate milestone is not acceptable. Close only after the production deployment smoke test passes.
 - **No agent, command, or workflow may deploy, promote, or push changes to any production environment without explicit, unambiguous approval from the Stakeholder in that session.** Prior approval in a previous session or for a previous deployment does not carry over. Every production deployment requires a fresh "yes".
@@ -78,18 +80,6 @@ This covers three files/directories:
    - `cp ~/Documents/workspace/claude-team-config/commands/*.md ~/.claude/commands/`
 
 Do this at the end of any session where any config file was changed — do not wait to be asked.
-
-## Semantic Code Search (CocoIndex MCP)
-An MCP server (`cocoindex-search`) is always available with three tools:
-- `index_project(path)` — index a project directory (run once per project, re-run after major changes)
-- `search_code(query, project_path?, limit?)` — semantic search over indexed code
-- `list_indexed_projects()` — show what's been indexed
-
-**Rules:**
-- Before using Glob or Grep to explore a codebase that has been indexed, call `search_code` first with a natural-language query. Only fall back to Glob/Grep if search results are insufficient.
-- If the user starts working on a new project directory that isn't yet indexed, offer to run `index_project` for it.
-- Prefer targeted `search_code` calls over reading entire files. Read files only to see specific sections identified by search results.
-- `search_code` returns file paths and line numbers — use those to read only the relevant sections with the `Read` tool's `offset`/`limit` parameters.
 
 ## Semantic Code Search (CocoIndex MCP)
 An MCP server (`cocoindex-search`) is always available with three tools:
