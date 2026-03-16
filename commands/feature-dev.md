@@ -30,7 +30,14 @@ Feature request: $ARGUMENTS
    - Content-Type: `application/json-patch+json`
    - Use Node.js `https` module with `Buffer.from(':' + token).toString('base64')` for auth — do not shell out to curl
    - Log the HTTP status; if it fails, warn the Stakeholder and continue (do not block on ADO update failure)
-3. Launch the `project-manager` agent:
+3. **Create a feature branch before any files are touched**:
+   - Derive a branch name from the ticket or feature description:
+     - If an ADO ticket number was found: `feature/ado-{id}-{short-slug}` (e.g. `feature/ado-89-terms-page`)
+     - Otherwise: `feature/{short-slug}` derived from $ARGUMENTS
+   - Run: `git checkout main && git pull origin main && git checkout -b <branch-name>`
+   - Confirm the branch was created and is now the active branch before proceeding
+   - **All subsequent file changes and commits must happen on this branch — never on main**
+4. Launch the `project-manager` agent:
    - Prompt: "The Stakeholder has requested: $ARGUMENTS. Explore the codebase for context, identify all ambiguities, ask clarifying questions, and produce a complete requirements spec with functional requirements and testable acceptance criteria."
 3. From the approved spec, identify what contracts are needed. Launch in parallel as applicable:
    - **If the feature introduces or changes API endpoints** → launch `api-designer`:
