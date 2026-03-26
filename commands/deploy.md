@@ -1,5 +1,5 @@
 ---
-description: Plan, validate, and execute deployments using the devops-engineer agent. Handles new infrastructure setup, pipeline changes, secrets management, staging deployments, and production deployments. Always presents cost estimates before provisioning paid resources and requires explicit Stakeholder approval before any production deployment.
+description: Plan, validate, and execute deployments using the devops-engineer agent. Handles new infrastructure setup, pipeline changes, secrets management, and deployments. For projects with auto-deploy on merge to main (e.g. Sarah Sweeps via Azure Pipelines), monitors the pipeline that was already triggered rather than running manual staging/production steps.
 argument-hint: Describe what to deploy or the infrastructure task to perform
 ---
 
@@ -29,10 +29,14 @@ Deployment request: $ARGUMENTS
    - **Audit/review** — reviewing existing infrastructure or pipeline without making changes
 3. If the request is ambiguous, ask the Stakeholder to clarify before proceeding
 4. Read relevant files to understand current state:
-   - CI/CD config (`.github/workflows/`, `Dockerfile`, `docker-compose.yml`)
+   - CI/CD config (`.github/workflows/`, `azure-pipelines.yml`, `Dockerfile`, `docker-compose.yml`)
    - Infrastructure-as-code (`terraform/`, `cdk/`, `pulumi/`, `sst.config.ts`)
    - Package.json for runtime and build commands
    - Any existing deployment runbook or README sections on deployment
+5. **Detect auto-deploy pipelines**: Check whether this project deploys automatically on merge to main:
+   - Look for `azure-pipelines.yml` with a `trigger: - main` or `trigger: branches: include: [main]` block
+   - Look for `.github/workflows/` files with `on: push: branches: [main]`
+   - If an auto-deploy pipeline is found, note it — **Steps 4 (Staging) and 7 (Production Deployment) are replaced by pipeline monitoring** for "New feature deployment" tasks. No manual deploy action is needed; the pipeline already fired on merge.
 
 ---
 
@@ -46,7 +50,10 @@ Deployment request: $ARGUMENTS
    **New application setup**:
    > "A new application needs its infrastructure and CI/CD pipeline set up. Here are the project requirements: [requirements from PM spec or Stakeholder]. Read the codebase to understand the runtime, dependencies, and structure. Propose at least two deployment architecture options with full cost estimates. Do not provision anything — present options to the Stakeholder for approval first. Once approved, build the pipeline and infrastructure-as-code, set up secrets management, and produce a deployment runbook."
 
-   **New feature deployment**:
+   **New feature deployment (auto-deploy pipeline detected)**:
+   > "A feature has been merged to main and the CI/CD pipeline has already triggered automatically. Pipeline: [pipeline name / URL]. Changed files: [list]. Check whether the pipeline run has completed successfully. Confirm the application is healthy post-deploy. Report the production URL and final deployment status. Do NOT attempt to re-deploy — the pipeline already handled it."
+
+   **New feature deployment (no auto-deploy)**:
    > "The following feature has passed QA and is ready to deploy: [feature description]. Review the changes for any new environment variables, secrets, or infrastructure requirements. If anything paid needs to change, present a cost estimate for Stakeholder approval before acting. Validate the CI/CD pipeline, deploy to staging, run smoke tests, and report the result. Do not deploy to production without explicit Stakeholder approval."
 
    **Infrastructure change**:
@@ -84,6 +91,10 @@ Deployment request: $ARGUMENTS
 
 ## Step 4: Staging Deployment
 
+**Skip this step entirely if an auto-deploy pipeline was detected.** The pipeline handles both staging and production; proceed to Step 5 (Observability Gate).
+
+**For projects without auto-deploy**:
+
 **Goal**: Confirm the deployment works in staging before touching production.
 
 **Actions**:
@@ -99,7 +110,7 @@ Deployment request: $ARGUMENTS
 
 ## Step 5: Observability Gate
 
-**Goal**: Confirm the application is observable in production before deploying.
+**Goal**: Confirm the application is observable in production before deploying (or immediately after auto-deploy).
 
 **Actions**:
 1. Launch the `observability-engineer` agent:
@@ -107,11 +118,15 @@ Deployment request: $ARGUMENTS
 2. If gaps are found:
    - **Critical gaps** (no error tracking, no alerting on new endpoints) — block deployment, hand to `fullstack-engineer` to instrument, then re-verify
    - **Minor gaps** — present to Stakeholder and ask whether to fix now or log as a known gap
-3. Once observability is confirmed — proceed to production approval
+3. Once observability is confirmed — proceed
 
 ---
 
 ## Step 6: Production Approval Gate
+
+**Skip this step if an auto-deploy pipeline was detected** — the pipeline already deployed to production on merge. Proceed to Step 7 to confirm the pipeline result.
+
+**For projects without auto-deploy**:
 
 **Goal**: Get explicit Stakeholder sign-off before deploying to production.
 
@@ -128,7 +143,11 @@ Deployment request: $ARGUMENTS
 
 ---
 
-## Step 7: Production Deployment
+## Step 7: Production Deployment / Pipeline Confirmation
+
+**For projects with auto-deploy**: Confirm the pipeline that fired on merge completed successfully. Report the build number, completion status, and any smoke test results from the pipeline. Do not trigger a new deployment.
+
+**For projects without auto-deploy**:
 
 **Goal**: Deploy to production safely with rollback readiness.
 
@@ -159,8 +178,8 @@ Deployment request: $ARGUMENTS
    - Infrastructure provisioned or changed (with resource names and regions)
    - Secrets added or rotated (confirm stored correctly — never list secret values)
    - Pipeline changes made
-   - Staging result
-   - Production result
+   - Staging result (or "auto-deployed — no separate staging step")
+   - Production result (pipeline build number if auto-deploy)
    - Monthly cost impact (new total if infrastructure changed)
    - Rollback procedure (how to revert this deployment if needed later)
    - Updated runbook location (if runbook was created or modified)
