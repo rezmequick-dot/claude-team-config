@@ -11,6 +11,19 @@ Agents involved: `project-manager`, `api-designer`, `fullstack-engineer`, `datab
 
 Use TodoWrite to track all phases throughout.
 
+## CocoIndex Semantic Search
+
+The `cocoindex-search` MCP is always available with three tools:
+- `search_code(query, project_path?, limit?)` — semantic search over indexed code
+- `list_indexed_projects()` — confirm which projects are indexed
+- `index_project(path)` — index a project (run once if not yet indexed)
+
+**Rules for the main orchestrator and all subagent prompts:**
+- Before using Glob or Grep to explore the codebase, call `search_code` with a natural-language query first
+- Fall back to Glob/Grep only if search results are insufficient
+- `search_code` returns file paths and line numbers — use those with `Read`'s `offset`/`limit` to read only the relevant sections
+- If the project is not yet indexed, run `index_project` before Phase 1 begins
+
 ---
 
 ## Phase 0: Requirements & Contracts
@@ -38,7 +51,7 @@ Feature request: $ARGUMENTS
    - Confirm the branch was created and is now the active branch before proceeding
    - **All subsequent file changes and commits must happen on this branch — never on main**
 4. Launch the `project-manager` agent:
-   - Prompt: "The Stakeholder has requested: $ARGUMENTS. Explore the codebase for context, identify all ambiguities, ask clarifying questions, and produce a complete requirements spec with functional requirements and testable acceptance criteria."
+   - Prompt: "The Stakeholder has requested: $ARGUMENTS. Explore the codebase for context, identify all ambiguities, ask clarifying questions, and produce a complete requirements spec with functional requirements and testable acceptance criteria. Use the `cocoindex-search` MCP `search_code` tool for all codebase exploration before falling back to Glob or Grep."
 3. From the approved spec, identify what contracts are needed. Launch in parallel as applicable:
    - **If the feature introduces or changes API endpoints** → launch `api-designer`:
      - Prompt: "Based on this spec: [spec], design the API contract. Produce endpoint definitions, request/response schemas, error responses, and a full OpenAPI 3.1 spec. Present for Stakeholder approval before implementation."
@@ -56,11 +69,11 @@ Feature request: $ARGUMENTS
 
 **Actions**:
 1. Launch 2 `fullstack-engineer` agents in parallel:
-   - Agent 1: "Map the high-level architecture and identify patterns relevant to [feature]. Return a list of 5–10 key files."
-   - Agent 2: "Find existing features similar to [feature] and trace their implementation end-to-end. Return a list of 5–10 key files."
+   - Agent 1: "Map the high-level architecture and identify patterns relevant to [feature]. Return a list of 5–10 key files. Use the `cocoindex-search` MCP `search_code` tool for all codebase exploration before falling back to Glob or Grep."
+   - Agent 2: "Find existing features similar to [feature] and trace their implementation end-to-end. Return a list of 5–10 key files. Use the `cocoindex-search` MCP `search_code` tool for all codebase exploration before falling back to Glob or Grep."
 2. If the feature involves data model changes, launch `database-architect` in parallel:
-   - Prompt: "Review the existing schema and data access patterns relevant to [feature]. Identify current indexing strategy, existing migration patterns, and any constraints that affect the new feature's data design."
-3. Read all files identified by agents
+   - Prompt: "Review the existing schema and data access patterns relevant to [feature]. Identify current indexing strategy, existing migration patterns, and any constraints that affect the new feature's data design. Use the `cocoindex-search` MCP `search_code` tool for all codebase exploration before falling back to Glob or Grep."
+3. Read all files identified by agents (use file paths and line numbers from search results with Read's offset/limit parameters)
 4. Present a summary of findings: architecture patterns, conventions, data model, integration points
 
 ---
@@ -94,6 +107,7 @@ Feature request: $ARGUMENTS
    - The approved schema design (Phase 2, if applicable)
    - Key files and patterns from Phase 1
    - Standards: strict TypeScript, tests for all new behaviour, ESLint-clean, no `any`, meaningful error handling
+   - Instruction: "Use the `cocoindex-search` MCP `search_code` tool before Glob or Grep when looking up existing patterns, utilities, or similar implementations. Read only the sections identified by search results using offset/limit."
 3. Read all files modified by the agent
 4. Update todos as implementation progresses
 
