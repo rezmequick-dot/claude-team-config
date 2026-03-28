@@ -8,6 +8,7 @@
 - Never force push unless explicitly requested.
 - Never skip hooks (--no-verify) unless explicitly asked.
 - Prefer creating new commits over amending existing ones.
+- **Batch all changes into a single commit at the very end of the feature — never commit mid-task.** The pre-commit hook is slow (full build + tests); committing once minimises the cost.
 
 ## Code Style
 - Add comments to explain non-obvious logic, edge cases, and intent.
