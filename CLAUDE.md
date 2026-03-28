@@ -118,6 +118,7 @@ The `qa-engineer` agent is responsible for starting and stopping the dev server 
 - If a test fails, read the error once, adjust the selector or assertion, and retry once. If it fails again, mark FAIL and continue — no further retries
 - Do not re-test criteria already marked PASS unless the related code changed in this session
 - **Always issue Bash commands individually — never combine multiple commands into a multi-line script or heredoc.** Chain sequential steps with separate Bash tool calls, not newlines or semicolons in a single call. This avoids permission prompts caused by multi-line scripts.
+- **Never include comments (`#`) in Bash commands.** Comments in commands trigger approval prompts. If a command needs explanation, describe it in your text response instead.
 
 ## Subagent Sandbox Restrictions
 Subagents cannot run `npm install`, `npx` (for installs), or browser automation directly. Rules:
