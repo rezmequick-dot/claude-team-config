@@ -261,17 +261,113 @@ For existing applications:
 
 ---
 
-## Observability Stack Recommendations
+## Active Observability Stack: New Relic
+
+**New Relic is the provisioned and enabled observability platform.** When working on any Sarah Sweeps project, default to New Relic for all observability work — do not recommend alternative stacks unless the Stakeholder asks.
+
+### New Relic Capabilities in Use
+- **APM** — distributed tracing, transaction traces, error analytics, service maps
+- **Logs** — centralised log management with log-in-context (links logs to traces/errors)
+- **Alerts & Notifications** — alert policies, conditions (NRQL, APM, Infrastructure), notification channels
+- **Dashboards** — NRQL-powered custom dashboards for operational and business views
+- **Browser** (if enabled) — Core Web Vitals, JS errors, AJAX tracing
+- **Infrastructure** — host metrics, container metrics
+
+### New Relic Instrumentation Patterns
+
+**Node.js APM agent** (already installed if `newrelic` is in `package.json`):
+```ts
+// newrelic.js (project root) — loaded via NODE_OPTIONS='--require newrelic'
+exports.config = {
+  app_name: ['sarah-sweeps'],
+  license_key: process.env.NEW_RELIC_LICENSE_KEY,
+  logging: { level: 'info' },
+  distributed_tracing: { enabled: true },
+}
+```
+
+**Custom attributes** — attach business context to every transaction:
+```ts
+import newrelic from 'newrelic'
+newrelic.addCustomAttributes({ tenantId, userId, planTier })
+```
+
+**Custom events** — log business events as queryable New Relic events:
+```ts
+newrelic.recordCustomEvent('PaymentProcessed', {
+  tenantId, amount, currency, planTier, status
+})
+newrelic.recordCustomEvent('SubscriptionChanged', {
+  tenantId, from, to, reason
+})
+```
+
+**Custom metrics** — increment/record named metrics:
+```ts
+newrelic.incrementMetric('Custom/Billing/CheckoutStarted')
+newrelic.recordMetric('Custom/Billing/CheckoutDurationMs', durationMs)
+```
+
+**Error notices** — ensure errors are tracked with context:
+```ts
+newrelic.noticeError(err, { tenantId, endpoint: req.path })
+```
+
+### NRQL Query Patterns
+
+```sql
+-- Error rate for billing endpoints (last 1 hour)
+SELECT percentage(count(*), WHERE error IS true) AS 'Error Rate'
+FROM Transaction WHERE appName = 'sarah-sweeps'
+AND request.uri LIKE '/api/stripe%' OR request.uri LIKE '/api/subscription%'
+SINCE 1 hour ago TIMESERIES
+
+-- p95 latency by endpoint
+SELECT percentile(duration, 95) AS 'p95 (s)'
+FROM Transaction WHERE appName = 'sarah-sweeps'
+FACET request.uri SINCE 1 hour ago
+
+-- Webhook processing volume and failures
+SELECT count(*) FROM Transaction
+WHERE appName = 'sarah-sweeps' AND request.uri = '/api/stripe/webhook'
+FACET httpResponseCode SINCE 24 hours ago TIMESERIES
+
+-- Custom event query example
+SELECT count(*) FROM PaymentProcessed
+FACET status SINCE 7 days ago TIMESERIES 1 day
+```
+
+### New Relic Alert Conditions
+
+Use **NRQL alert conditions** for application-level alerts:
+```
+Alert: Billing Webhook Error Rate
+Query: SELECT percentage(count(*), WHERE httpResponseCode >= 500) FROM Transaction
+       WHERE request.uri = '/api/stripe/webhook'
+Critical threshold: > 10% for 2 minutes
+Warning threshold:  > 5% for 5 minutes
+```
+
+Use **APM alert conditions** for service-level alerts:
+- Apdex score below target
+- Error percentage above threshold
+- Response time above threshold
+
+**Runbook links** — every alert condition must include a `runbook_url` pointing to the project's runbook doc.
+
+---
+
+## General Observability Stack Reference
 
 | Scale | Recommended Stack | Approx Cost |
 |---|---|---|
 | Early stage / low traffic | Grafana Cloud free tier (50GB logs, 10k metrics series) | Free |
 | Growing startup | Grafana Cloud Pro or Better Stack | $50–200/month |
-| Mid-scale | DataDog or New Relic (APM + logs + metrics) | $200–1000/month |
+| Mid-scale | **New Relic** (APM + logs + metrics) — **active stack** | $200–1000/month |
 | High scale / self-hosted | Prometheus + Grafana + Loki + Tempo on EKS/ECS | Infrastructure cost only |
 | AWS-native | CloudWatch + X-Ray + Container Insights | Pay per use |
 
-Always present cost estimates before recommending a paid stack. Start with the free tier and graduate as the product scales.
+Always present cost estimates before recommending a paid stack.
 
 ---
 
