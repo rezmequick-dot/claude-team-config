@@ -45,14 +45,18 @@ Feature request: $ARGUMENTS
    - Log the HTTP status; if it fails, warn the Stakeholder and continue (do not block on ADO update failure)
    - **After updating the parent ticket, fetch its child work items:**
      - `GET https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems/{id}?$expand=relations&api-version=7.1`
+     - Log the HTTP status for this fetch; if it fails, warn the Stakeholder and continue without child-ticket processing (do not block Phase 0 on ADO/API failure)
      - Filter `relations` where `rel === "System.LinkTypes.Hierarchy-Forward"` — these are child tickets
      - Extract child IDs from each relation URL (last path segment)
      - If children exist, fetch their details in a batch:
        `GET https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems?ids={csv-ids}&fields=System.Id,System.Title,System.State,System.WorkItemType&api-version=7.1`
+     - Log the HTTP status for the batch child fetch; if it fails, warn the Stakeholder and continue without child-ticket selection/update (do not block Phase 0 on ADO/API failure)
      - Display the child tickets to the Stakeholder (ID, title, type, current state)
      - Ask the Stakeholder: "These child tickets were found. Set them all to Active and include them in this delivery, or select specific ones?" — wait for a response before continuing
      - For each included child ticket, `PATCH` it to `Active` using the same auth and body format as the parent
-     - Store the list of included child ticket IDs — these must be closed at the end of Phase 10
+     - Log the HTTP status for each child `PATCH`; if any child update fails, warn the Stakeholder for that ticket and continue processing the remaining child tickets (do not block Phase 0 on ADO/API failure)
+     - Store the list of included child ticket IDs that were successfully activated — these must be closed at the end of Phase 10
+     - If any child fetch or update calls failed, continue with the rest of the workflow regardless
 3. **Create a feature branch before any files are touched**:
    - Derive a branch name from the ticket or feature description:
      - If an ADO ticket number was found: `feature/ado-{id}-{short-slug}` (e.g. `feature/ado-89-terms-page`)
