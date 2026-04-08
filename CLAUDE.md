@@ -4,7 +4,8 @@
 - Primary language: TypeScript/JavaScript (Node.js, React, Next.js, etc.)
 
 ## Git Behavior
-- Commit freely without asking, but always ask before pushing to remote.
+- **Batch all changes into a single commit at the very end of the feature — never commit mid-task.** The pre-commit hook is slow (full build + tests); committing once minimises the cost.
+- Always ask before pushing to remote.
 - Never force push unless explicitly requested.
 - Never skip hooks (--no-verify) unless explicitly asked.
 - Prefer creating new commits over amending existing ones.

@@ -279,7 +279,7 @@ For existing applications:
 ```ts
 // newrelic.js (project root) — loaded via NODE_OPTIONS='--require newrelic'
 exports.config = {
-  app_name: ['sarah-sweeps'],
+  app_name: ['Turnoverly'],
   license_key: process.env.NEW_RELIC_LICENSE_KEY,
   logging: { level: 'info' },
   distributed_tracing: { enabled: true },
@@ -318,18 +318,18 @@ newrelic.noticeError(err, { tenantId, endpoint: req.path })
 ```sql
 -- Error rate for billing endpoints (last 1 hour)
 SELECT percentage(count(*), WHERE error IS true) AS 'Error Rate'
-FROM Transaction WHERE appName = 'sarah-sweeps'
-AND request.uri LIKE '/api/stripe%' OR request.uri LIKE '/api/subscription%'
+FROM Transaction WHERE appName = 'Turnoverly'
+AND (request.uri LIKE '/api/stripe%' OR request.uri LIKE '/api/subscription%')
 SINCE 1 hour ago TIMESERIES
 
 -- p95 latency by endpoint
 SELECT percentile(duration, 95) AS 'p95 (s)'
-FROM Transaction WHERE appName = 'sarah-sweeps'
+FROM Transaction WHERE appName = 'Turnoverly'
 FACET request.uri SINCE 1 hour ago
 
 -- Webhook processing volume and failures
 SELECT count(*) FROM Transaction
-WHERE appName = 'sarah-sweeps' AND request.uri = '/api/stripe/webhook'
+WHERE appName = 'Turnoverly' AND request.uri = '/api/stripe/webhook'
 FACET httpResponseCode SINCE 24 hours ago TIMESERIES
 
 -- Custom event query example
