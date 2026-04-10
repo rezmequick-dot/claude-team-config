@@ -9,7 +9,6 @@
 - Never force push unless explicitly requested.
 - Never skip hooks (--no-verify) unless explicitly asked.
 - Prefer creating new commits over amending existing ones.
-- **Batch all changes into a single commit at the very end of the feature — never commit mid-task.** The pre-commit hook is slow (full build + tests); committing once minimises the cost.
 
 ## Code Style
 - Add comments to explain non-obvious logic, edge cases, and intent.
@@ -23,77 +22,25 @@
 - When referencing code, include file path and line number.
 
 ## Stakeholder
-- The user is the **Product Stakeholder and owner** at all times.
-- All agents treat the user's requirements as final. No agent expands scope, reinterprets intent, or overrides priorities without explicit Stakeholder approval.
-- The `project-manager` agent is responsible for gathering and clarifying requirements before engineering begins.
-- The PM must always ask about **plan/tier gating** for any new feature: "Which subscription plans have access to this?" — never assume all plans.
-- The PM must always ask about **rate limits** for any user-facing submission endpoint: confirm threshold and window before engineering begins.
-- Engineering agents operate against agreed specifications — they do not make product decisions.
-- The `devops-engineer` must always present cost estimates and receive explicit Stakeholder approval before provisioning any paid cloud infrastructure.
-- The `performance-engineer` must run before the `security-engineer` in the feature delivery pipeline. Performance validation happens against the running app; security audits the final code. Both must pass before QA begins.
-- The `security-engineer` must be invoked before any production release and before QA handoff. QA must never run against code with unresolved Critical or High security findings.
-- The `ui-ux-engineer` must be invoked for any feature that touches UI. It runs **after security and before QA**. QA must never sign off on a feature that has not passed a `ui-ux-engineer` review. The UI/UX review is a hard gate — not advisory. Unresolved visual regressions (spacing, alignment, typography, responsive layout) block QA sign-off exactly as unresolved High security findings do.
+- The user is the **Product Stakeholder and owner** at all times. All agents treat requirements as final — no agent expands scope or overrides priorities without explicit approval.
+- The `project-manager` must ask about **plan/tier gating** and **rate limits** for any new feature before engineering begins.
+- The `devops-engineer` must present cost estimates and receive approval before provisioning any paid infrastructure.
 - **Feature delivery pipeline order:** Performance → Security → UI/UX Review → QA → Accessibility → Observability → Documentation → PR → Deploy
-- **A pull request to the project repository is a required output of every feature delivery.** The PR must be opened before deployment, include a full description (spec link, files changed, security findings resolved, QA verdict), and be merged before the deployment phase begins. Features delivered without a PR are incomplete.
-- **Azure DevOps work items must not be closed until the feature is confirmed live in production.** Closing during QA, after staging, or for any intermediate milestone is not acceptable. Close only after the production deployment smoke test passes.
-- **No agent, command, or workflow may deploy, promote, or push changes to any production environment without explicit, unambiguous approval from the Stakeholder in that session.** Prior approval in a previous session or for a previous deployment does not carry over. Every production deployment requires a fresh "yes".
-
-## Agent Roster
-
-| Agent | Role |
-|---|---|
-| `project-manager` | Requirements, clarification, Stakeholder sign-off |
-| `fullstack-engineer` | Full-stack TypeScript/Node.js implementation |
-| `senior-code-reviewer` | Code quality, standards enforcement, scope audit |
-| `qa-engineer` | Acceptance testing and negative testing against running app |
-| `devops-engineer` | CI/CD pipelines, infrastructure, secrets, deployment |
-| `security-engineer` | OWASP audits, CVE scanning, secrets detection, auth review |
-| `database-architect` | Schema design, query optimisation, migration safety |
-| `performance-engineer` | Load testing, profiling, bottleneck identification |
-| `technical-writer` | README, OpenAPI specs, ADRs, runbooks, changelogs |
-| `dependency-auditor` | CVE scanning, license compliance, bloat reduction |
-| `accessibility-engineer` | WCAG 2.1 AA compliance, keyboard nav, screen reader testing |
-| `ui-ux-engineer` | Visual design conformance — spacing, typography, colour tokens, responsive layout against design specs |
-| `incident-responder` | Production incident diagnosis, restoration, post-mortems |
-| `api-designer` | REST/GraphQL contract design, versioning, OpenAPI specs |
-| `observability-engineer` | Structured logging, metrics, tracing, alerting, SLOs, dashboards |
+- A PR is required for every feature delivery. ADO work items must not be closed until the feature is confirmed live in production.
+- **No agent may deploy to production without explicit Stakeholder approval in that session.** Prior session approval does not carry over.
 
 ## Claude Config Repo Sync
-The canonical source of truth for all Claude config is https://github.com/rezmequick-dot/claude-team-config (cloned at `/Users/jasonanthony/Documents/workspace/claude-team-config` on Mac, `C:/Users/antho/Documents/workspace/claude-team-config` on Windows).
+Canonical config source: https://github.com/rezmequick-dot/claude-team-config (Mac: `~/Documents/workspace/claude-team-config`).
 
-This covers three files/directories:
-- `~/.claude/CLAUDE.md` ↔ `claude-team-config/CLAUDE.md`
-- `~/.claude/agents/*.md` ↔ `claude-team-config/agents/*.md`
-- `~/.claude/commands/*.md` ↔ `claude-team-config/commands/*.md`
+Covers: `~/.claude/CLAUDE.md`, `~/.claude/agents/*.md`, `~/.claude/commands/*.md`.
 
-**Whenever any of these are modified locally, automatically sync to the repo:**
-1. Copy changed files to the local repo:
-   - `cp ~/.claude/CLAUDE.md ~/Documents/workspace/claude-team-config/CLAUDE.md`
-   - `cp ~/.claude/agents/*.md ~/Documents/workspace/claude-team-config/agents/`
-   - `cp ~/.claude/commands/*.md ~/Documents/workspace/claude-team-config/commands/`
-2. Create a branch: `git checkout -b improve/<short-description>`
-3. Commit the change with a descriptive message
-4. Push the branch and open a PR via `gh pr create`
-
-**Whenever the config repo is updated (PR merged, `git pull`):**
-1. Copy all files back to `~/.claude`:
-   - `cp ~/Documents/workspace/claude-team-config/CLAUDE.md ~/.claude/CLAUDE.md`
-   - `cp ~/Documents/workspace/claude-team-config/agents/*.md ~/.claude/agents/`
-   - `cp ~/Documents/workspace/claude-team-config/commands/*.md ~/.claude/commands/`
-
-Do this at the end of any session where any config file was changed — do not wait to be asked.
+When any of these are modified locally: copy to repo, create branch `improve/<description>`, commit, push, and open a PR via `gh pr create`. When the repo is updated: copy all files back to `~/.claude`. Do this at the end of any session where config changed.
 
 ## Semantic Code Search (CocoIndex MCP)
-An MCP server (`cocoindex-search`) is always available with three tools:
-- `index_project(path)` — index a project directory (run once per project, re-run after major changes)
-- `search_code(query, project_path?, limit?)` — semantic search over indexed code
-- `list_indexed_projects()` — show what's been indexed
-
-**Rules:**
-- Before using Glob or Grep to explore a codebase that has been indexed, call `search_code` first with a natural-language query. Only fall back to Glob/Grep if search results are insufficient.
-- If the user starts working on a new project directory that isn't yet indexed, offer to run `index_project` for it.
-- Prefer targeted `search_code` calls over reading entire files. Read files only to see specific sections identified by search results.
-- `search_code` returns file paths and line numbers — use those to read only the relevant sections with the `Read` tool's `offset`/`limit` parameters.
+MCP server `cocoindex-search` provides: `index_project(path)`, `search_code(query, project_path?, limit?)`, `list_indexed_projects()`.
+- Before using Glob or Grep on an indexed codebase, call `search_code` first. Fall back to Glob/Grep only if results are insufficient.
+- If a new project directory is not yet indexed, offer to run `index_project`.
+- Use `search_code` results to read only targeted file sections via `Read` with `offset`/`limit`.
 
 ## General Preferences
 - Always read a file before editing it.
@@ -107,69 +54,36 @@ An MCP server (`cocoindex-search`) is always available with three tools:
 - This is an audit only — no changes are made without Stakeholder approval
 - If no CI/CD files are present, skip silently
 
-## QA Agent Handoff Protocol
-The `qa-engineer` agent is responsible for starting and stopping the dev server itself. The main agent MUST prepare the following before dispatching:
-1. Gather test account credentials with a **single targeted DB query** (e.g. `SELECT email FROM Users WHERE role='admin' LIMIT 3`) — do not let the agent explore the DB schema broadly
-2. Note any tools the QA agent will need (e.g. Playwright MCP) and confirm they are available in the session
-3. Pre-mark any test cases that are untestable in the local environment (e.g. SMTP delivery) as SKIP with a reason
-4. Include in the QA prompt: "Start the dev server with `npm run dev` from the project root if it is not already responding at `http://localhost:3000`. Confirm HTTP 200 before running any tests. Stop the dev server when all tests are complete."
-
-**QA execution rules (include in every QA prompt):**
-- Run tests using Playwright MCP tools directly — do NOT write spec files to disk
-- Inspect DOM state and localStorage via `page.evaluate()` rather than writing helper utilities
-- If a test fails, read the error once, adjust the selector or assertion, and retry once. If it fails again, mark FAIL and continue — no further retries
-- Do not re-test criteria already marked PASS unless the related code changed in this session
-- **Always issue Bash commands individually — never combine multiple commands into a multi-line script or heredoc.** Chain sequential steps with separate Bash tool calls, not newlines or semicolons in a single call. This avoids permission prompts caused by multi-line scripts.
-- **Never include comments (`#`) in Bash commands.** Comments in commands trigger approval prompts. If a command needs explanation, describe it in your text response instead.
-
-## Subagent Sandbox Restrictions
-Subagents cannot run `npm install`, `npx` (for installs), or browser automation directly. Rules:
+## Subagent Strategy
+- Use subagents to keep the main context window clean; offload research, exploration, and parallel analysis
+- One task per subagent for focused execution
 - Never ask a subagent to install packages — do it at the main agent level with the Bash tool
 - Playwright browser tests must use the Playwright MCP server (configured globally), not `@playwright/test` npm installs
-- If a subagent reports a permission block on install commands, handle the install in the main thread and resume the agent
-
-## DevOps Agent Prerequisites
-Before running any Docker commands, the `devops-engineer` must:
-1. Verify Docker CLI is available: `docker --version`
-2. Discover container names with `docker compose ps` — never assume `{project}-{service}-1` format; Docker Desktop uses `{project}-{service}` without the `-1` suffix
+- If a subagent reports a permission block on install commands, handle the install in the main thread and resume
 
 ## Workflow Orchestration
 
 ### 1. Plan Mode Default
 - Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
-- If something goes sideways, STOP and re-plan immediately – don't keep pushing
-- Use plan mode for verification steps, not just building
+- If something goes sideways, STOP and re-plan immediately — don't keep pushing
 - Write detailed specs upfront to reduce ambiguity
 
-### 2. Subagent Strategy
-- Use subagents liberally to keep main context window clean
-- Offload research, exploration, and parallel analysis to subagents
-- For complex problems, throw more compute at it via subagents
-- One task per subagent for focused execution
-
-### 3. Self-Improvement Loop
+### 2. Self-Improvement Loop
 - After ANY correction from the user: update `tasks/lessons.md` with the pattern
 - Write rules for yourself that prevent the same mistake
-- Ruthlessly iterate on these lessons until mistake rate drops
 - Review lessons at session start for relevant project
 
-### 4. Verification Before Done
+### 3. Verification Before Done
 - Never mark a task complete without proving it works
-- Diff behavior between main and your changes when relevant
 - Ask yourself: "Would a staff engineer approve this?"
 - Run tests, check logs, demonstrate correctness
 
-### 5. Demand Elegance (Balanced)
+### 4. Demand Elegance (Balanced)
 - For non-trivial changes: pause and ask "is there a more elegant way?"
-- If a fix feels hacky: "Knowing everything I know now, implement the elegant solution"
-- Skip this for simple, obvious fixes – don't over-engineer
-- Challenge your own work before presenting it
+- Skip this for simple, obvious fixes — don't over-engineer
 
-### 6. Autonomous Bug Fixing
-- When given a bug report: just fix it. Don't ask for hand-holding
-- Point at logs, errors, failing tests – then resolve them
-- Zero context switching required from the user
-- Go fix failing CI tests without being told how
+### 5. Autonomous Bug Fixing
+- When given a bug report: just fix it. Point at logs, errors, failing tests — then resolve them.
 
 ## Task Management
 1. **Plan First**: Write plan to `tasks/todo.md` with checkable items

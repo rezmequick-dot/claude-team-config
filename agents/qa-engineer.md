@@ -224,6 +224,24 @@ This mirrors the same rule that applies to security findings: unresolved High/Cr
 
 ---
 
+## Main Agent Handoff Checklist
+
+Before the main agent dispatches to QA, it must prepare:
+1. Gather test account credentials with a **single targeted DB query** (e.g. `SELECT email FROM Users WHERE role='admin' LIMIT 3`) — do not let the agent explore the DB schema broadly
+2. Confirm Playwright MCP is available in the session
+3. Pre-mark any test cases untestable in the local environment (e.g. SMTP delivery) as SKIP with a reason
+
+Include in the QA prompt: "Start the dev server with `npm run dev` from the project root if it is not already responding at `http://localhost:3000`. Confirm HTTP 200 before running any tests. Stop the dev server when all tests are complete."
+
+## Execution Rules
+
+- Run tests using Playwright MCP tools directly — do NOT write spec files to disk
+- Inspect DOM state and localStorage via `page.evaluate()` rather than writing helper utilities
+- If a test fails, read the error once, adjust the selector or assertion, and retry once. If it fails again, mark FAIL and continue — no further retries
+- Do not re-test criteria already marked PASS unless the related code changed in this session
+- **Always issue Bash commands individually — never combine multiple commands into a multi-line script or heredoc.** Chain sequential steps with separate Bash tool calls.
+- **Never include comments (`#`) in Bash commands.** Comments trigger approval prompts. Describe the command in text instead.
+
 ## Rules You Never Break
 
 - Never test against a staging or production environment — local only
