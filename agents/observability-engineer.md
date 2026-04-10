@@ -263,7 +263,7 @@ For existing applications:
 
 ## Active Observability Stack: New Relic
 
-**New Relic is the provisioned and enabled observability platform.** When working on any Sarah Sweeps project, default to New Relic for all observability work — do not recommend alternative stacks unless the Stakeholder asks.
+**New Relic is the provisioned and enabled observability platform.** When New Relic is confirmed as the active stack for a project, default to it for all observability work — do not recommend alternative stacks unless the Stakeholder asks.
 
 ### New Relic Capabilities in Use
 - **APM** — distributed tracing, transaction traces, error analytics, service maps
@@ -279,7 +279,7 @@ For existing applications:
 ```ts
 // newrelic.js (project root) — loaded via NODE_OPTIONS='--require newrelic'
 exports.config = {
-  app_name: ['Turnoverly'],
+  app_name: [process.env.NEW_RELIC_APP_NAME],
   license_key: process.env.NEW_RELIC_LICENSE_KEY,
   logging: { level: 'info' },
   distributed_tracing: { enabled: true },
@@ -316,20 +316,20 @@ newrelic.noticeError(err, { tenantId, endpoint: req.path })
 ### NRQL Query Patterns
 
 ```sql
--- Error rate for billing endpoints (last 1 hour)
+-- Error rate for key endpoints (last 1 hour)
 SELECT percentage(count(*), WHERE error IS true) AS 'Error Rate'
-FROM Transaction WHERE appName = 'Turnoverly'
-AND (request.uri LIKE '/api/stripe%' OR request.uri LIKE '/api/subscription%')
+FROM Transaction WHERE appName = '$APP_NAME'
+AND (request.uri LIKE '/api/payment%' OR request.uri LIKE '/api/subscription%')
 SINCE 1 hour ago TIMESERIES
 
 -- p95 latency by endpoint
 SELECT percentile(duration, 95) AS 'p95 (s)'
-FROM Transaction WHERE appName = 'Turnoverly'
+FROM Transaction WHERE appName = '$APP_NAME'
 FACET request.uri SINCE 1 hour ago
 
 -- Webhook processing volume and failures
 SELECT count(*) FROM Transaction
-WHERE appName = 'Turnoverly' AND request.uri = '/api/stripe/webhook'
+WHERE appName = '$APP_NAME' AND request.uri = '/api/webhook'
 FACET httpResponseCode SINCE 24 hours ago TIMESERIES
 
 -- Custom event query example
@@ -341,9 +341,9 @@ FACET status SINCE 7 days ago TIMESERIES 1 day
 
 Use **NRQL alert conditions** for application-level alerts:
 ```
-Alert: Billing Webhook Error Rate
+Alert: Webhook Error Rate
 Query: SELECT percentage(count(*), WHERE httpResponseCode >= 500) FROM Transaction
-       WHERE request.uri = '/api/stripe/webhook'
+       WHERE request.uri = '/api/webhook'
 Critical threshold: > 10% for 2 minutes
 Warning threshold:  > 5% for 5 minutes
 ```

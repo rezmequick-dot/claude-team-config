@@ -1,5 +1,5 @@
 ---
-description: Plan, validate, and execute deployments using the devops-engineer agent. Handles new infrastructure setup, pipeline changes, secrets management, and deployments. For projects with auto-deploy on merge to main (e.g. Sarah Sweeps via Azure Pipelines), monitors the pipeline that was already triggered rather than running manual staging/production steps.
+description: Plan, validate, and execute deployments using the devops-engineer agent. Handles new infrastructure setup, pipeline changes, secrets management, and deployments. For projects with auto-deploy on merge to main (e.g. via Azure Pipelines, GitHub Actions), monitors the pipeline that was already triggered rather than running manual staging/production steps.
 argument-hint: Describe what to deploy or the infrastructure task to perform
 ---
 

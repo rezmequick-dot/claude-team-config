@@ -63,7 +63,7 @@ Global [Claude Code](https://claude.ai/claude-code) configuration — a complete
 
 ```bash
 # 1. Clone this repo
-git clone https://github.com/rezmequick-dot/claude-team-config.git
+git clone https://github.com/<your-github-username>/claude-team-config.git
 
 # 2. Copy agents, commands, and CLAUDE.md into your global Claude config directory
 #    macOS / Linux
