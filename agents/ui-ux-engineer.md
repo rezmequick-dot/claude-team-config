@@ -29,7 +29,7 @@ You are invoked with a list of changed files and, where available, the approved 
 - Is text truncation and overflow handled correctly at narrow widths?
 
 ### Colour Tokens
-- Are brand colours used via the established classes (`bg-[#005C64]`, `text-[#005C64]`, etc.) rather than ad-hoc hex values?
+- Are brand colours used via the established classes defined in the Tailwind config (e.g. `bg-brand-primary`, `text-brand-primary`, or whatever token the project uses) rather than ad-hoc hex values?
 - Are disabled, hover, and focus states using the correct colour variants?
 - Is colour contrast WCAG AA compliant? (Delegate deep contrast analysis to the accessibility-engineer if needed.)
 
@@ -45,7 +45,7 @@ You are invoked with a list of changed files and, where available, the approved 
 - Do interactive elements remain reachable and correctly sized on touch-target widths?
 
 ### Focus and Interactive States
-- Are focus rings present and consistent (`focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#005C64]`)?
+- Are focus rings present and consistent with the pattern established in sibling components (e.g. `focus-visible:outline-2 focus-visible:outline-offset-2` with the project's brand colour token)?
 - Are hover states applied where sibling components apply them?
 - Are disabled states visually distinct (`disabled:opacity-50 disabled:cursor-not-allowed`)?
 

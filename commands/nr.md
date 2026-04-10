@@ -5,53 +5,51 @@ NRQL queries, error investigation, alert inspection, dashboard data, APM metrics
 
 ## Credentials
 
-Read from environment variables set in `~/.zshrc`. Always source first:
-```bash
-source ~/.zshrc
-```
+Read from environment variables. Ensure they are loaded before running commands (e.g. from a `.env` file, your shell profile, or a secrets manager):
 
 - `NEW_RELIC_API_KEY` — User API key
-- `NEW_RELIC_ACCOUNT_ID` — 4255703
+- `NEW_RELIC_ACCOUNT_ID` — Your New Relic account ID
+- `NEW_RELIC_APP_NAME` — The APM application name (as it appears in New Relic)
 
 ## Execute a NRQL query
 
 ```bash
-source ~/.zshrc && curl -s https://api.newrelic.com/graphql \
+curl -s https://api.newrelic.com/graphql \
   -H "Content-Type: application/json" \
   -H "API-Key: $NEW_RELIC_API_KEY" \
   -d "{\"query\": \"{ actor { account(id: $NEW_RELIC_ACCOUNT_ID) { nrql(query: \\\"NRQL_HERE\\\") { results } } } }\"}" \
   | jq '.data.actor.account.nrql.results'
 ```
 
-## Common NRQL patterns — Sarah Sweeps / Turnoverly (appName = 'Turnoverly')
+## Common NRQL patterns (replace `$APP_NAME` with the value of `NEW_RELIC_APP_NAME`)
 
 ### Error rate by endpoint (last 1 hour)
 ```nrql
 SELECT percentage(count(*), WHERE error IS true) FROM Transaction
-WHERE appName = 'Turnoverly' FACET request.uri SINCE 1 hour ago LIMIT 20
+WHERE appName = '$APP_NAME' FACET request.uri SINCE 1 hour ago LIMIT 20
 ```
 
 ### p95 / p99 latency by endpoint
 ```nrql
 SELECT percentile(duration, 95, 99) FROM Transaction
-WHERE appName = 'Turnoverly' FACET request.uri SINCE 1 hour ago LIMIT 20
+WHERE appName = '$APP_NAME' FACET request.uri SINCE 1 hour ago LIMIT 20
 ```
 
 ### Recent errors with context
 ```nrql
-SELECT message, tenant_id, outcome, request.uri FROM Log
+SELECT message, request.uri FROM Log
 WHERE level = 'error' SINCE 15 minutes ago LIMIT 50
 ```
 
-### Billing structured log events (last 24h)
+### Structured log events (last 24h)
 ```nrql
-SELECT tenant_id, plan, billing_cycle, outcome, event_type, message
+SELECT *
 FROM Log WHERE outcome IS NOT NULL SINCE 24 hours ago LIMIT 50
 ```
 
-### Checkout sessions — success vs failure
+### Checkout / payment sessions — success vs failure
 ```nrql
-SELECT count(*) FROM Log WHERE message LIKE '%stripe_checkout%'
+SELECT count(*) FROM Log WHERE message LIKE '%checkout%'
 FACET outcome SINCE 24 hours ago
 ```
 
@@ -59,34 +57,33 @@ FACET outcome SINCE 24 hours ago
 ```nrql
 SELECT count(*) AS total,
   filter(count(*), WHERE httpResponseCode != 200) AS errors
-FROM Transaction WHERE request.uri = '/api/stripe/webhook'
-AND appName = 'Turnoverly' SINCE 24 hours ago TIMESERIES 1 hour
+FROM Transaction WHERE request.uri = '/api/webhook'
+AND appName = '$APP_NAME' SINCE 24 hours ago TIMESERIES 1 hour
 ```
 
-### Payment failures by tenant (last 7 days)
+### Failures by tenant / user (last 7 days)
 ```nrql
-SELECT count(*) FROM Log WHERE event_type = 'invoice.payment_failed'
+SELECT count(*) FROM Log WHERE level = 'error'
 FACET tenant_id SINCE 7 days ago
 ```
 
-### Subscription changes (last 7 days)
+### Key domain events (last 7 days)
 ```nrql
 SELECT count(*) FROM Log
-WHERE event IN ('subscription.cancel_requested', 'subscription.resume_requested',
-  'subscription.plan_changed', 'subscription.resubscribed')
+WHERE event IS NOT NULL
 FACET event SINCE 7 days ago
 ```
 
-### Specific tenant activity
+### Specific entity activity
 ```nrql
 SELECT timestamp, level, message, outcome, event FROM Log
-WHERE tenant_id = 'TENANT_ID' SINCE 24 hours ago LIMIT 100
+WHERE tenant_id = 'ENTITY_ID' SINCE 24 hours ago LIMIT 100
 ```
 
 ### Slowest transactions
 ```nrql
 SELECT percentile(duration, 99) FROM Transaction
-WHERE appName = 'Turnoverly' FACET request.uri SINCE 1 hour ago LIMIT 10
+WHERE appName = '$APP_NAME' FACET request.uri SINCE 1 hour ago LIMIT 10
 ```
 
 ### Active grace periods (log-derived)
@@ -97,33 +94,24 @@ FACET outcome SINCE 7 days ago
 
 ## List alert policies
 ```bash
-source ~/.zshrc && curl -s https://api.newrelic.com/v2/alerts_policies.json \
+curl -s https://api.newrelic.com/v2/alerts_policies.json \
   -H "X-Api-Key: $NEW_RELIC_API_KEY" | jq '.policies[] | {id, name}'
 ```
 
 ## List NRQL conditions for a policy
 ```bash
-source ~/.zshrc && curl -s "https://api.newrelic.com/v2/alerts_nrql_conditions.json?policy_id=POLICY_ID" \
+curl -s "https://api.newrelic.com/v2/alerts_nrql_conditions.json?policy_id=POLICY_ID" \
   -H "X-Api-Key: $NEW_RELIC_API_KEY" | jq '.nrql_conditions[] | {id, name, enabled}'
 ```
 
 ## List dashboards
 ```bash
-source ~/.zshrc && curl -s https://api.newrelic.com/graphql \
+curl -s https://api.newrelic.com/graphql \
   -H "Content-Type: application/json" \
   -H "API-Key: $NEW_RELIC_API_KEY" \
   -d '{"query":"{ actor { entitySearch(query: \"type = DASHBOARD\") { results { entities { name guid } } } } }"}' \
   | jq '.data.actor.entitySearch.results.entities[] | {name, guid}'
 ```
-
-## Known resource IDs — Turnoverly production
-
-| Resource | ID |
-|---|---|
-| Account ID | 4255703 |
-| Billing Alerts policy | 7294623 |
-| Billing Operations dashboard | NDI1NTcwM3xWSVp8REFTSEJPQVJEfGRhOjEyMzA2NDI4 |
-| Billing Ops Email channel | 8427928 |
 
 ## Workflow
 
