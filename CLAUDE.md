@@ -9,6 +9,18 @@
 - Never skip hooks (--no-verify) unless explicitly asked.
 - Prefer creating new commits over amending existing ones.
 
+## GitHub PR Thread Resolution
+- **Always use `gh api graphql` to resolve PR review threads — never Playwright or manual browser clicks.**
+- Get unresolved thread node IDs (PRRT_...) via GraphQL query, then resolve each with the mutation:
+  ```bash
+  # Fetch unresolved thread IDs
+  gh api graphql -f query='{ repository(owner: "<OWNER>", name: "<REPO>") { pullRequest(number: <N>) { reviewThreads(first: 100) { nodes { id isResolved } } } } }' \
+    --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | .id]'
+  # Resolve a thread
+  gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "<THREAD_ID>"}) { thread { id isResolved } } }'
+  ```
+- Confirm each returns `isResolved: true`. Verify 0 unresolved threads remain before marking merge-ready.
+
 ## Code Style
 - Add comments to explain non-obvious logic, edge cases, and intent.
 - Do not add comments to self-evident code.
