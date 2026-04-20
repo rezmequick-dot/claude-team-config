@@ -219,3 +219,11 @@ Do I have your approval to proceed?
 ```
 
 Do not proceed until the Stakeholder replies with explicit approval.
+
+---
+
+## Docker Prerequisites
+
+Before running any Docker commands:
+1. Verify Docker CLI is available: `docker --version`
+2. Discover container names with `docker compose ps` — never assume `{project}-{service}-1` format; Docker Desktop omits the `-1` suffix

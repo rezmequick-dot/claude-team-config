@@ -11,6 +11,20 @@ Agents involved: `project-manager`, `api-designer`, `fullstack-engineer`, `datab
 
 Use TodoWrite to track all phases throughout.
 
+## Semantic Code Search (Optional — CocoIndex MCP)
+
+If the `cocoindex-search` MCP server is available, use it with three tools:
+- `search_code(query, project_path?, limit?)` — semantic search over indexed code
+- `list_indexed_projects()` — confirm which projects are indexed
+- `index_project(path)` — index a project (run once if not yet indexed)
+
+**Rules for the main orchestrator and all subagent prompts (when CocoIndex is available):**
+- Before using Glob or Grep to explore the codebase, call `search_code` with a natural-language query first
+- Fall back to Glob/Grep only if search results are insufficient
+- `search_code` returns file paths and line numbers — use those with `Read`'s `offset`/`limit` to read only the relevant sections
+- If the project is not yet indexed, run `index_project` before Phase 1 begins
+- If `cocoindex-search` is not available, use Glob/Grep/Read directly throughout
+
 ---
 
 ## Phase 0: Requirements & Contracts
@@ -21,15 +35,29 @@ Feature request: $ARGUMENTS
 
 **Actions**:
 1. Create a todo list covering all phases
-2. **If $ARGUMENTS references an ADO ticket number** (e.g. "ADO #85", "ticket 85", "task 85") — extract the ticket ID and immediately update it via the ADO REST API:
+2. **If $ARGUMENTS references a work item ticket number** (e.g. "ADO #85", "Jira-85", "ticket 85") — extract the ticket ID and, if using **Azure DevOps**, immediately update it via the ADO REST API:
    - Set state to `Active`
    - Assign to the current user (read assignee from `.env` as `AZURE_DEVOPS_USER_EMAIL`, or leave assigned-to unchanged if the var is absent)
-   - Use the PAT from `.env` as `AZURE_DEVOPS_AUTH_TOKEN`, org `applicationIngenuity`, project `Sarah Sweeps`
-   - API: `PATCH https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems/{id}?api-version=7.1`
+   - Read `AZURE_DEVOPS_AUTH_TOKEN`, `ADO_ORG`, and `ADO_PROJECT` from `.env`
+   - API: `PATCH https://dev.azure.com/{ADO_ORG}/{ADO_PROJECT}/_apis/wit/workitems/{id}?api-version=7.1`
    - Body: `[{"op":"add","path":"/fields/System.State","value":"Active"},{"op":"add","path":"/fields/System.AssignedTo","value":"<email>"}]`
    - Content-Type: `application/json-patch+json`
    - Use Node.js `https` module with `Buffer.from(':' + token).toString('base64')` for auth — do not shell out to curl
-   - Log the HTTP status; if it fails, warn the Stakeholder and continue (do not block on ADO update failure)
+   - Log the HTTP status; if it fails, warn the Stakeholder and continue (do not block on ticket update failure)
+   - **After updating the parent ticket, fetch its child work items:**
+     - `GET https://dev.azure.com/{ADO_ORG}/{ADO_PROJECT}/_apis/wit/workitems/{id}?$expand=relations&api-version=7.1`
+     - Log the HTTP status for this fetch; if it fails, warn the Stakeholder and continue without child-ticket processing (do not block Phase 0 on API failure)
+     - Filter `relations` where `rel === "System.LinkTypes.Hierarchy-Forward"` — these are child tickets
+     - Extract child IDs from each relation URL (last path segment)
+     - If children exist, fetch their details in a batch:
+       `GET https://dev.azure.com/{ADO_ORG}/{ADO_PROJECT}/_apis/wit/workitems?ids={csv-ids}&fields=System.Id,System.Title,System.State,System.WorkItemType&api-version=7.1`
+     - Log the HTTP status for the batch child fetch; if it fails, warn the Stakeholder and continue without child-ticket selection/update (do not block Phase 0 on API failure)
+     - Display the child tickets to the Stakeholder (ID, title, type, current state)
+     - Ask the Stakeholder: "These child tickets were found. Set them all to Active and include them in this delivery, or select specific ones?" — wait for a response before continuing
+     - For each included child ticket, `PATCH` it to `Active` using the same auth and body format as the parent
+     - Log the HTTP status for each child `PATCH`; if any child update fails, warn the Stakeholder for that ticket and continue processing the remaining child tickets (do not block Phase 0 on API failure)
+     - Store the list of included child ticket IDs that were successfully activated — these must be closed at the end of Phase 10
+     - If any child fetch or update calls failed, continue with the rest of the workflow regardless
 3. **Create a feature branch before any files are touched**:
    - Derive a branch name from the ticket or feature description:
      - If an ADO ticket number was found: `feature/ado-{id}-{short-slug}` (e.g. `feature/ado-89-terms-page`)
@@ -38,7 +66,7 @@ Feature request: $ARGUMENTS
    - Confirm the branch was created and is now the active branch before proceeding
    - **All subsequent file changes and commits must happen on this branch — never on main**
 4. Launch the `project-manager` agent:
-   - Prompt: "The Stakeholder has requested: $ARGUMENTS. Explore the codebase for context, identify all ambiguities, ask clarifying questions, and produce a complete requirements spec with functional requirements and testable acceptance criteria."
+   - Prompt: "The Stakeholder has requested: $ARGUMENTS. Explore the codebase for context, identify all ambiguities, ask clarifying questions, and produce a complete requirements spec with functional requirements and testable acceptance criteria. Use the `cocoindex-search` MCP `search_code` tool for all codebase exploration before falling back to Glob or Grep."
 3. From the approved spec, identify what contracts are needed. Launch in parallel as applicable:
    - **If the feature introduces or changes API endpoints** → launch `api-designer`:
      - Prompt: "Based on this spec: [spec], design the API contract. Produce endpoint definitions, request/response schemas, error responses, and a full OpenAPI 3.1 spec. Present for Stakeholder approval before implementation."
@@ -56,11 +84,11 @@ Feature request: $ARGUMENTS
 
 **Actions**:
 1. Launch 2 `fullstack-engineer` agents in parallel:
-   - Agent 1: "Map the high-level architecture and identify patterns relevant to [feature]. Return a list of 5–10 key files."
-   - Agent 2: "Find existing features similar to [feature] and trace their implementation end-to-end. Return a list of 5–10 key files."
+   - Agent 1: "Map the high-level architecture and identify patterns relevant to [feature]. Return a list of 5–10 key files. Use the `cocoindex-search` MCP `search_code` tool for all codebase exploration before falling back to Glob or Grep."
+   - Agent 2: "Find existing features similar to [feature] and trace their implementation end-to-end. Return a list of 5–10 key files. Use the `cocoindex-search` MCP `search_code` tool for all codebase exploration before falling back to Glob or Grep."
 2. If the feature involves data model changes, launch `database-architect` in parallel:
-   - Prompt: "Review the existing schema and data access patterns relevant to [feature]. Identify current indexing strategy, existing migration patterns, and any constraints that affect the new feature's data design."
-3. Read all files identified by agents
+   - Prompt: "Review the existing schema and data access patterns relevant to [feature]. Identify current indexing strategy, existing migration patterns, and any constraints that affect the new feature's data design. Use the `cocoindex-search` MCP `search_code` tool for all codebase exploration before falling back to Glob or Grep."
+3. Read all files identified by agents (use file paths and line numbers from search results with Read's offset/limit parameters)
 4. Present a summary of findings: architecture patterns, conventions, data model, integration points
 
 ---
@@ -83,18 +111,20 @@ Feature request: $ARGUMENTS
 
 ## Phase 3: Implementation
 
-**Goal**: Build the feature to production standards.
+**Goal**: Build the feature to production standards on a dedicated feature branch.
 
 **Actions**:
-1. Launch the `fullstack-engineer` agent with:
+1. Create a feature branch: `git checkout -b feature/<short-description>` before any implementation begins
+2. Launch the `fullstack-engineer` agent with:
    - The full approved spec (Phase 0)
    - The approved API contract / OpenAPI spec (Phase 0, if applicable)
    - The approved architecture approach (Phase 2)
    - The approved schema design (Phase 2, if applicable)
    - Key files and patterns from Phase 1
    - Standards: strict TypeScript, tests for all new behaviour, ESLint-clean, no `any`, meaningful error handling
-2. Read all files modified by the agent
-3. Update todos as implementation progresses
+   - Instruction: "Use the `cocoindex-search` MCP `search_code` tool before Glob or Grep when looking up existing patterns, utilities, or similar implementations. Read only the sections identified by search results using offset/limit."
+3. Read all files modified by the agent
+4. Update todos as implementation progresses
 
 ---
 
@@ -119,23 +149,37 @@ Consolidate all findings by severity. Present to the Stakeholder. Fix loops:
 
 ---
 
-## Phase 5: Security Audit
+## Phase 5: Performance Validation
 
-**Goal**: Catch exploitable vulnerabilities before they reach production.
+**Goal**: Validate the feature under realistic load before security and QA — catching bottlenecks while the code is still easy to change.
+
+**Actions**:
+1. **If the feature is performance-sensitive** (high-traffic endpoint, data-heavy operation, new background job, new query path) → launch `performance-engineer`:
+   - Prompt: "Profile the new feature under realistic load. Establish a baseline, run load tests against the locally running application, identify bottlenecks, and compare against the performance budget thresholds. Report any response time regressions or resource leaks."
+2. Findings:
+   - **Breach** — hand to `fullstack-engineer` or `database-architect` for optimisation, then re-test. Do not proceed until within budget.
+   - **Pass** — proceed to security audit
+3. If the feature is not performance-sensitive, skip this phase and proceed directly to Phase 6.
+
+---
+
+## Phase 6: Security Audit
+
+**Goal**: Catch exploitable vulnerabilities before they reach QA or production.
 
 **Actions**:
 1. Launch the `security-engineer` agent:
    - Prompt: "Perform a security audit of all files changed in this feature. Check: OWASP Top 10 for the affected code paths, auth and authorisation correctness, input validation, secrets handling, new dependency CVEs, and any new API endpoints for injection or access control issues."
 2. Findings by severity:
-   - **Critical/High** — must be fixed before proceeding. Loop back to `fullstack-engineer`, then re-audit changed files.
-   - **Medium/Low** — present to Stakeholder, ask whether to fix now or log as a known issue
+   - **Critical/High** — must be fixed before proceeding. Loop: `fullstack-engineer` fixes → re-audit changed files only.
+   - **Medium/Low** — present to Stakeholder, ask whether to fix now or log as a known accepted risk
 3. **Do not proceed to QA with any unresolved Critical or High findings**
 
 ---
 
-## Phase 6: Specialised Validation
+## Phase 7: Specialised Validation
 
-**Goal**: Validate the running application across functional, accessibility, and performance dimensions.
+**Goal**: Validate the running application against acceptance criteria, accessibility requirements, and visual design conformance.
 
 **Actions**:
 Launch the following agents in parallel as applicable:
@@ -156,19 +200,19 @@ Launch the following agents in parallel as applicable:
 2. **If the feature includes frontend/UI changes** → `accessibility-engineer`:
    - Prompt: "Audit the changed UI components and pages for WCAG 2.1 AA compliance. Run automated axe-core checks via Playwright. Check keyboard navigation, focus management, colour contrast, and ARIA usage."
 
-3. **If the feature is performance-sensitive** (high-traffic endpoint, data-heavy operation, new background job) → `performance-engineer`:
-   - Prompt: "Profile the new feature under realistic load. Establish a baseline, run load tests against the locally running application, identify bottlenecks, and compare against the performance budget thresholds."
+3. **If the feature includes frontend/UI changes** → `ui-ux-engineer`:
+   - Prompt: "Audit the changed pages and components for visual design conformance. Using Playwright, capture screenshots at mobile (375px), tablet (768px), and desktop (1280px) breakpoints. Check: spacing and padding consistency against established patterns in the codebase, typography scale, colour token usage, component alignment, and responsive layout behaviour. Reference the Tailwind config and existing components as the design baseline. Report deviations by severity with annotated screenshots where possible."
 
 Consolidate all results. Fix loops:
-- QA FAIL → `fullstack-engineer` fixes → `senior-code-reviewer` re-reviews changed files → re-run failed QA checks
+- QA FAIL → `fullstack-engineer` fixes → `senior-code-reviewer` re-reviews changed files → `security-engineer` re-audits changed files → re-run failed QA checks
 - Accessibility Critical → `fullstack-engineer` fixes → re-run accessibility audit on changed components
-- Performance breach → `fullstack-engineer` or `database-architect` optimises → re-test
+- UI/UX Critical (broken layout, missing spacing, wrong breakpoint behaviour) → `fullstack-engineer` fixes → re-run UI/UX audit on changed components
 
-**Do not proceed to documentation or deployment until QA verdict is PASS or CONDITIONAL PASS**
+**Do not proceed to observability or deployment until QA verdict is PASS or CONDITIONAL PASS**
 
 ---
 
-## Phase 7: Observability
+## Phase 8: Observability
 
 **Goal**: Ensure the feature is fully visible in production before it ships.
 
@@ -180,7 +224,7 @@ Consolidate all results. Fix loops:
 
 ---
 
-## Phase 8: Documentation
+## Phase 9: Documentation
 
 **Goal**: Ensure the feature is fully documented before it ships.
 
@@ -192,23 +236,29 @@ Consolidate all results. Fix loops:
 
 ---
 
-## Phase 8: Deployment
+## Phase 10: Deployment
 
-**Goal**: Get the validated, documented feature deployed through the CI/CD pipeline.
+**Goal**: Open a PR, merge it, and get the validated, documented feature deployed through the CI/CD pipeline.
 
 **Actions**:
-1. Launch the `devops-engineer` agent:
-   - Prompt: "Feature has passed all reviews, QA, security, and documentation. Changed files: [list]. Review for new env vars, secrets, or infrastructure requirements. If paid resources are needed, present cost estimate to Stakeholder before acting. Deploy to staging, run smoke tests, report result. Do not deploy to production without explicit Stakeholder approval."
-2. If new infrastructure or secrets are required:
+1. Create the pull request against the main branch:
+   - Use `gh pr create` with a title and body that includes: what was built (linked to the work item / issue tracker ticket), files changed, API changes, data model changes, security findings resolved, QA verdict, and any known accepted risks
+   - Assign reviewers if required by the project's merge policy
+   - **The PR is a required output of every feature. Do not skip this step.**
+2. Once the PR is approved and all CI checks pass, merge it
+3. Launch the `devops-engineer` agent:
+   - Prompt: "Feature has passed all reviews, performance validation, security audit, QA, and documentation. PR has been merged. Changed files: [list]. Review for new env vars, secrets, or infrastructure requirements. If paid resources are needed, present cost estimate to Stakeholder before acting. Deploy to staging, run smoke tests, report result. Do not deploy to production without explicit Stakeholder approval."
+4. If new infrastructure or secrets are required:
    - Present cost estimate to the Stakeholder
    - **Wait for explicit approval before provisioning**
-3. Confirm staging deployment is healthy
-4. Present staging result to Stakeholder and ask for production approval
-5. Confirm production deployment and smoke test result
+5. Confirm staging deployment is healthy
+6. Present staging result to Stakeholder and ask for production approval
+7. Confirm production deployment and smoke test result
+8. **Only after confirmed production deployment**: close all work items in this delivery — the parent ticket and all included child tickets identified in Phase 0. For ADO: use `PATCH https://dev.azure.com/{ADO_ORG}/{ADO_PROJECT}/_apis/wit/workitems/{id}?api-version=7.1` to set `System.State` to `Closed` for each. For other trackers: use the appropriate API or MCP tool. Do not close any ticket during QA, after staging, or for any reason short of confirmed production deployment.
 
 ---
 
-## Phase 9: Summary
+## Phase 11: Summary
 
 **Goal**: Close out the workflow with a complete delivery record.
 
@@ -220,10 +270,12 @@ Consolidate all results. Fix loops:
    - **API changes** — new/changed endpoints, OpenAPI spec location
    - **Data model changes** — migrations run, schema changes
    - **Code review** — findings and resolutions
+   - **Performance** — benchmark results (if tested), pass/breach status
    - **Security audit** — findings and resolutions
    - **QA verdict** — acceptance criteria results, negative test results
    - **Accessibility** — compliance status (if audited)
-   - **Performance** — benchmark results (if tested)
    - **Documentation** — what was written and where
+   - **Pull request** — PR URL, merge status
    - **Deployment** — staging/production status, infrastructure changes, cost impact
+   - **Work Items** — items closed in issue tracker (list IDs and titles)
    - **Next steps** — follow-up features, known deferred issues, monitoring recommendations

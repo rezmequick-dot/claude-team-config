@@ -1,6 +1,6 @@
 ---
-description: Full-cycle Epic delivery — runs the complete feature-dev pipeline for every ticket in an ADO Epic, sequentially with Stakeholder approval between each
-argument-hint: ADO Epic ID or comma-separated ticket IDs (e.g. "Epic #42" or "ADO #85, ADO #86, ADO #87")
+description: Full-cycle Epic delivery — runs the complete feature-dev pipeline for every ticket in an Epic, sequentially with Stakeholder approval between each
+argument-hint: Epic ID or comma-separated ticket IDs (e.g. "Epic #42" or "#85, #86, #87" — supports ADO, Jira, Linear, GitHub Issues, etc.)
 ---
 
 # Epic Development Pipeline
@@ -19,15 +19,17 @@ Epic / tickets: $ARGUMENTS
 1. Create a top-level todo list covering all Epic phases
 2. **Fetch the ticket list**:
    - If $ARGUMENTS contains an Epic ID (e.g. "Epic #42"):
-     - Query the ADO REST API to fetch all child work items of the Epic:
-       - `GET https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems/{epicId}?$expand=relations&api-version=7.1`
+     - If using **Azure DevOps**: Query the ADO REST API to fetch all child work items of the Epic:
+       - Read `ADO_ORG` and `ADO_PROJECT` from `.env`
+       - `GET https://dev.azure.com/{ADO_ORG}/{ADO_PROJECT}/_apis/wit/workitems/{epicId}?$expand=relations&api-version=7.1`
        - For each child relation with `rel: "System.LinkTypes.Hierarchy-Forward"`, extract the work item ID
-       - Fetch each child: `GET https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems/{id}?api-version=7.1`
+       - Fetch each child: `GET https://dev.azure.com/{ADO_ORG}/{ADO_PROJECT}/_apis/wit/workitems/{id}?api-version=7.1`
        - Extract: ID, Title, State, Description, Acceptance Criteria (field `Microsoft.VSTS.Common.AcceptanceCriteria`)
+     - If using **GitHub Issues / Jira / Linear**: use the appropriate API or MCP tool for the tracker
      - Use the PAT from `.env` as `AZURE_DEVOPS_AUTH_TOKEN`, auth via `Buffer.from(':' + token).toString('base64')`
      - Use Node.js `https` module — do not shell out to curl
      - Log each HTTP status; if a fetch fails, warn and skip that ticket (do not block the whole Epic)
-   - If $ARGUMENTS is a comma-separated list of ticket IDs (e.g. "ADO #85, ADO #86"):
+   - If $ARGUMENTS is a comma-separated list of ticket IDs:
      - Parse the IDs directly — no Epic fetch needed
      - Fetch each ticket's details as above to get Title, State, Description, Acceptance Criteria
 3. **Present the full ticket list** to the Stakeholder:
@@ -52,11 +54,12 @@ For each ticket in the approved execution queue, run the complete feature-dev pi
 
 #### Step 1: Pre-flight check
 - Confirm the previous ticket's production deployment smoke test passed (or this is the first ticket)
-- Announce to the Stakeholder: "Starting ticket ADO #[ID]: [Title]. This is ticket [N] of [total]."
-- Update the ticket state to `Active` in ADO:
-  - `PATCH https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems/{id}?api-version=7.1`
+- Announce to the Stakeholder: "Starting ticket #[ID]: [Title]. This is ticket [N] of [total]."
+- Update the ticket state to `Active` in the issue tracker:
+  - **ADO**: `PATCH https://dev.azure.com/{ADO_ORG}/{ADO_PROJECT}/_apis/wit/workitems/{id}?api-version=7.1`
   - Body: `[{"op":"add","path":"/fields/System.State","value":"Active"}]`
   - Content-Type: `application/json-patch+json`
+  - Read `ADO_ORG` and `ADO_PROJECT` from `.env`
 
 #### Step 2: Run the full feature-dev pipeline (Phases 0–9)
 
@@ -130,12 +133,12 @@ Execute all phases as defined in the feature-dev command for this ticket:
 - Confirm production deployment and smoke test result
 
 #### Step 3: Post-ticket close-out
-- **Only after production smoke test passes**: update ADO ticket state to `Done`
-  - `PATCH https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems/{id}?api-version=7.1`
+- **Only after production smoke test passes**: update ticket state to `Done` in the issue tracker
+  - **ADO**: `PATCH https://dev.azure.com/{ADO_ORG}/{ADO_PROJECT}/_apis/wit/workitems/{id}?api-version=7.1`
   - Body: `[{"op":"add","path":"/fields/System.State","value":"Done"}]`
 - Record a one-line delivery summary for this ticket in the Epic summary table (ticket ID, title, files changed count, QA verdict, deployment status)
 - Mark this ticket complete in the todo list
-- **Ask the Stakeholder**: "Ticket ADO #[ID] is live in production. Ready to start the next ticket ([next ID]: [next title])? Or would you like to pause?"
+- **Ask the Stakeholder**: "Ticket #[ID] is live in production. Ready to start the next ticket ([next ID]: [next title])? Or would you like to pause?"
 - **Do not start the next ticket without explicit Stakeholder confirmation**
 
 ---
