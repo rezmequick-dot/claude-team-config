@@ -10,6 +10,61 @@
 - Never skip hooks (--no-verify) unless explicitly asked.
 - Prefer creating new commits over amending existing ones.
 
+## GitHub PR Thread Resolution
+- **Always use `gh api graphql` to resolve PR review threads — never Playwright or manual browser clicks.**
+- Get unresolved thread node IDs (PRRT_...) via GraphQL query, then resolve each with the mutation:
+  ```bash
+  # Fetch unresolved thread IDs across all pages
+  cursor=null
+  unresolved='[]'
+
+  while :; do
+    page="$(
+      gh api graphql \
+        -F owner='<OWNER>' \
+        -F repo='<REPO>' \
+        -F number=<N> \
+        -F cursor="$cursor" \
+        -f query='
+          query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+            repository(owner: $owner, name: $repo) {
+              pullRequest(number: $number) {
+                reviewThreads(first: 100, after: $cursor) {
+                  nodes {
+                    id
+                    isResolved
+                  }
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+                }
+              }
+            }
+          }'
+    )"
+
+    unresolved="$(
+      jq -cn \
+        --argjson existing "$unresolved" \
+        --argjson page "$page" \
+        '$existing + ($page.data.repository.pullRequest.reviewThreads.nodes | map(select(.isResolved == false) | .id))'
+    )"
+
+    has_next="$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' <<<"$page")"
+    if [ "$has_next" != "true" ]; then
+      break
+    fi
+
+    cursor="$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor' <<<"$page")"
+  done
+
+  printf '%s\n' "$unresolved"
+  # Resolve a thread
+  gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "<THREAD_ID>"}) { thread { id isResolved } } }'
+  ```
+- Confirm each returns `isResolved: true`. Verify 0 unresolved threads remain before marking merge-ready.
+
 ## Code Style
 - Add comments to explain non-obvious logic, edge cases, and intent.
 - Do not add comments to self-evident code.
