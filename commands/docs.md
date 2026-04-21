@@ -41,7 +41,7 @@ Documentation target: $ARGUMENTS
 1. Launch the `technical-writer` agent with a focused prompt:
 
    **README**:
-   > "Read the codebase and produce or update the README. Include: project description, prerequisites with exact versions, step-by-step local setup with copy-pasteable commands, all environment variables in a table, available scripts, architecture overview, and links to API docs and runbook. Every command must be verified against the actual project."
+   > "Read the codebase and produce or update the README. Include: project description, prerequisites with exact versions, step-by-step local setup with copy-pasteable commands, all environment variables in a table, available scripts, architecture overview, and links to API docs and runbook. Every command must be verified against the actual project. Before writing the env var table, run the env var audit: enumerate every env var the config loader reads, confirm each has a row, confirm each name is the exact SCREAMING_SNAKE_CASE of its schema key, and rewrite any adjacent rows whose descriptions could be swapped without changing meaning. Scan the rest of the README for stale phrases the current change invalidates and propose edits."
 
    **OpenAPI**:
    > "Read all route definitions, controllers, and validation schemas. Produce a complete, valid OpenAPI 3.1 spec at docs/openapi.yaml. Document every endpoint: method, path, parameters, request body, all response schemas (including error responses), auth requirements, and realistic examples. Sync with the actual implementation — do not document routes that don't exist."

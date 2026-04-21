@@ -11,19 +11,18 @@ Agents involved: `project-manager`, `api-designer`, `fullstack-engineer`, `datab
 
 Use TodoWrite to track all phases throughout.
 
-## Semantic Code Search (Optional — CocoIndex MCP)
+## CocoIndex Semantic Search
 
-If the `cocoindex-search` MCP server is available, use it with three tools:
+The `cocoindex-search` MCP is always available with three tools:
 - `search_code(query, project_path?, limit?)` — semantic search over indexed code
 - `list_indexed_projects()` — confirm which projects are indexed
 - `index_project(path)` — index a project (run once if not yet indexed)
 
-**Rules for the main orchestrator and all subagent prompts (when CocoIndex is available):**
+**Rules for the main orchestrator and all subagent prompts:**
 - Before using Glob or Grep to explore the codebase, call `search_code` with a natural-language query first
 - Fall back to Glob/Grep only if search results are insufficient
 - `search_code` returns file paths and line numbers — use those with `Read`'s `offset`/`limit` to read only the relevant sections
 - If the project is not yet indexed, run `index_project` before Phase 1 begins
-- If `cocoindex-search` is not available, use Glob/Grep/Read directly throughout
 
 ---
 
@@ -35,27 +34,27 @@ Feature request: $ARGUMENTS
 
 **Actions**:
 1. Create a todo list covering all phases
-2. **If $ARGUMENTS references a work item ticket number** (e.g. "ADO #85", "Jira-85", "ticket 85") — extract the ticket ID and, if using **Azure DevOps**, immediately update it via the ADO REST API:
+2. **If $ARGUMENTS references an ADO ticket number** (e.g. "ADO #85", "ticket 85", "task 85") — extract the ticket ID and immediately update it via the ADO REST API:
    - Set state to `Active`
    - Assign to the current user (read assignee from `.env` as `AZURE_DEVOPS_USER_EMAIL`, or leave assigned-to unchanged if the var is absent)
-   - Read `AZURE_DEVOPS_AUTH_TOKEN`, `ADO_ORG`, and `ADO_PROJECT` from `.env`
-   - API: `PATCH https://dev.azure.com/{ADO_ORG}/{ADO_PROJECT}/_apis/wit/workitems/{id}?api-version=7.1`
+   - Use the PAT from `.env` as `AZURE_DEVOPS_AUTH_TOKEN`, org `applicationIngenuity`, project `Sarah Sweeps`
+   - API: `PATCH https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems/{id}?api-version=7.1`
    - Body: `[{"op":"add","path":"/fields/System.State","value":"Active"},{"op":"add","path":"/fields/System.AssignedTo","value":"<email>"}]`
    - Content-Type: `application/json-patch+json`
    - Use Node.js `https` module with `Buffer.from(':' + token).toString('base64')` for auth — do not shell out to curl
-   - Log the HTTP status; if it fails, warn the Stakeholder and continue (do not block on ticket update failure)
+   - Log the HTTP status; if it fails, warn the Stakeholder and continue (do not block on ADO update failure)
    - **After updating the parent ticket, fetch its child work items:**
-     - `GET https://dev.azure.com/{ADO_ORG}/{ADO_PROJECT}/_apis/wit/workitems/{id}?$expand=relations&api-version=7.1`
-     - Log the HTTP status for this fetch; if it fails, warn the Stakeholder and continue without child-ticket processing (do not block Phase 0 on API failure)
+     - `GET https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems/{id}?$expand=relations&api-version=7.1`
+     - Log the HTTP status for this fetch; if it fails, warn the Stakeholder and continue without child-ticket processing (do not block Phase 0 on ADO/API failure)
      - Filter `relations` where `rel === "System.LinkTypes.Hierarchy-Forward"` — these are child tickets
      - Extract child IDs from each relation URL (last path segment)
      - If children exist, fetch their details in a batch:
-       `GET https://dev.azure.com/{ADO_ORG}/{ADO_PROJECT}/_apis/wit/workitems?ids={csv-ids}&fields=System.Id,System.Title,System.State,System.WorkItemType&api-version=7.1`
-     - Log the HTTP status for the batch child fetch; if it fails, warn the Stakeholder and continue without child-ticket selection/update (do not block Phase 0 on API failure)
+       `GET https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems?ids={csv-ids}&fields=System.Id,System.Title,System.State,System.WorkItemType&api-version=7.1`
+     - Log the HTTP status for the batch child fetch; if it fails, warn the Stakeholder and continue without child-ticket selection/update (do not block Phase 0 on ADO/API failure)
      - Display the child tickets to the Stakeholder (ID, title, type, current state)
      - Ask the Stakeholder: "These child tickets were found. Set them all to Active and include them in this delivery, or select specific ones?" — wait for a response before continuing
      - For each included child ticket, `PATCH` it to `Active` using the same auth and body format as the parent
-     - Log the HTTP status for each child `PATCH`; if any child update fails, warn the Stakeholder for that ticket and continue processing the remaining child tickets (do not block Phase 0 on API failure)
+     - Log the HTTP status for each child `PATCH`; if any child update fails, warn the Stakeholder for that ticket and continue processing the remaining child tickets (do not block Phase 0 on ADO/API failure)
      - Store the list of included child ticket IDs that were successfully activated — these must be closed at the end of Phase 10
      - If any child fetch or update calls failed, continue with the rest of the workflow regardless
 3. **Create a feature branch before any files are touched**:
@@ -236,25 +235,50 @@ Consolidate all results. Fix loops:
 
 ---
 
-## Phase 10: Deployment
+## Phase 10: Pull Request
 
-**Goal**: Open a PR, merge it, and get the validated, documented feature deployed through the CI/CD pipeline.
+**Goal**: Open the PR and get it ready for merge.
 
 **Actions**:
 1. Create the pull request against the main branch:
-   - Use `gh pr create` with a title and body that includes: what was built (linked to the work item / issue tracker ticket), files changed, API changes, data model changes, security findings resolved, QA verdict, and any known accepted risks
+   - Use `gh pr create` with a title and body that includes: what was built (linked to the Azure DevOps feature), files changed, API changes, data model changes, security findings resolved, QA verdict, and any known accepted risks
+   - Every claim in the PR body ("adds tests for X", "no breaking change", "pre-commit hook covers this") must be verifiable from the diff. Self-check each line before submitting.
    - Assign reviewers if required by the project's merge policy
    - **The PR is a required output of every feature. Do not skip this step.**
-2. Once the PR is approved and all CI checks pass, merge it
-3. Launch the `devops-engineer` agent:
+
+---
+
+## Phase 10.5: Address PR Review Feedback
+
+**Goal**: Resolve every PR review comment — from human reviewers and from bot reviewers (GitHub Copilot in particular) — before merging. This is a **hard gate**: do not proceed to merge while unresolved review threads remain.
+
+**Actions**:
+1. Invoke `/address-pr-comments` with the PR number.
+2. The command will:
+   - Fetch all review comments (`gh api repos/.../pulls/<num>/comments` and `gh pr view --json reviews`).
+   - Classify each comment as **fix** / **defend-with-reply** / **defer-to-follow-up-ticket** (orchestrator decision).
+   - For each **fix**: route to the `fullstack-engineer` with the comment body and `file:line` location; require a targeted change and, if the comment flags a missing test, a new test case.
+   - Push the fixes on the PR branch (one commit per coherent group, or amend if pre-commit hooks would otherwise run repeatedly).
+   - Reply to each addressed thread and resolve it via the GitHub GraphQL `resolveReviewThread` mutation.
+   - For **defer** classifications: file a follow-up ADO ticket, link it in the reply, and resolve only with Stakeholder approval.
+3. Re-query unresolved threads until the count is zero or every remaining thread has an explicit Stakeholder-approved deferral.
+4. Only after all review threads are resolved, proceed to merge.
+
+---
+
+## Phase 10.75: Merge & Deploy
+
+**Actions**:
+1. Once the PR is approved and all CI checks pass, merge it
+2. Launch the `devops-engineer` agent:
    - Prompt: "Feature has passed all reviews, performance validation, security audit, QA, and documentation. PR has been merged. Changed files: [list]. Review for new env vars, secrets, or infrastructure requirements. If paid resources are needed, present cost estimate to Stakeholder before acting. Deploy to staging, run smoke tests, report result. Do not deploy to production without explicit Stakeholder approval."
-4. If new infrastructure or secrets are required:
+3. If new infrastructure or secrets are required:
    - Present cost estimate to the Stakeholder
    - **Wait for explicit approval before provisioning**
-5. Confirm staging deployment is healthy
-6. Present staging result to Stakeholder and ask for production approval
-7. Confirm production deployment and smoke test result
-8. **Only after confirmed production deployment**: close all work items in this delivery — the parent ticket and all included child tickets identified in Phase 0. For ADO: use `PATCH https://dev.azure.com/{ADO_ORG}/{ADO_PROJECT}/_apis/wit/workitems/{id}?api-version=7.1` to set `System.State` to `Closed` for each. For other trackers: use the appropriate API or MCP tool. Do not close any ticket during QA, after staging, or for any reason short of confirmed production deployment.
+4. Confirm staging deployment is healthy
+5. Present staging result to Stakeholder and ask for production approval
+6. Confirm production deployment and smoke test result
+7. **Only after confirmed production deployment**: close all Azure DevOps work items in this delivery — the parent ticket and all included child tickets identified in Phase 0. Use the same PATCH API to set `System.State` to `Closed` for each. Do not close any ticket during QA, after staging, or for any reason short of confirmed production deployment.
 
 ---
 
@@ -277,5 +301,5 @@ Consolidate all results. Fix loops:
    - **Documentation** — what was written and where
    - **Pull request** — PR URL, merge status
    - **Deployment** — staging/production status, infrastructure changes, cost impact
-   - **Work Items** — items closed in issue tracker (list IDs and titles)
+   - **Azure DevOps** — work items closed (list IDs and titles)
    - **Next steps** — follow-up features, known deferred issues, monitoring recommendations
