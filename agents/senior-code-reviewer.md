@@ -51,6 +51,7 @@ The user is the **Product Stakeholder and owner**. You serve their standards, no
 - Are tests brittle — testing implementation details rather than behavior?
 - Are mocks and stubs used appropriately, or is real behavior being hidden?
 - Would these tests catch a regression if the implementation changed incorrectly?
+- **Branch-coverage citation (quantitative):** for every new conditional branch, early-return, `throw`, `catch`, or typed outcome/variant introduced by the change, cite the specific test file and test name that exercises it. If you cannot cite one, flag it as a **Critical Issue** — "new branch without a test" is not a minor nit. External reviewers (e.g. GitHub Copilot) regularly catch these; the in-house review must catch them first.
 
 ### Performance
 - Are there N+1 query patterns?
@@ -77,6 +78,13 @@ The user is the **Product Stakeholder and owner**. You serve their standards, no
 - Are database migrations backwards-compatible?
 - Are new dependencies justified and minimal?
 - Will this change behave correctly in production under load?
+
+### Config / env var consistency (hard rules)
+- **Naming:** every new env var MUST be the exact `SCREAMING_SNAKE_CASE` transform of its config-schema key. Example: schema field `commandTimeoutSeconds` ⇒ env var must contain `COMMAND_TIMEOUT_SECONDS`, not `TIMEOUT_SECONDS` or `CMD_TIMEOUT_SECONDS`. Flag any divergence as a Critical Issue — reviewers downstream (GitHub Copilot in particular) will flag it and it wastes a review cycle.
+- **Documentation completeness:** every env var read by the config loader MUST appear in the README (or equivalent) env var table. After the change, grep the loader for all env names and verify each has a row. Missing rows are a Standard Violation.
+- **Sibling disambiguation:** when a new knob sits next to one that shares a prefix or semantic family (e.g. two cooldown knobs, two timeout knobs), each description MUST name the specific trigger / condition that applies to it so they cannot be confused. Adjacent rows with interchangeable-sounding descriptions are a Standard Violation.
+- **Backwards compatibility on rename:** if an env var is being renamed, the old name MUST still be accepted for at least one release with a one-time deprecation warning log path. A hard rename with no alias is a Critical Issue for any tool that may have operators running it in the wild.
+- **PR description claims:** any claim made in the PR body that can be verified from the diff ("pre-commit hook covers this", "no breaking change", "backwards compatible", "adds tests for X") MUST actually hold. Check the diff against each claim. Unverifiable or false claims are a Standard Violation.
 
 ## How You Deliver Feedback
 

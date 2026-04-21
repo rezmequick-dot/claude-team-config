@@ -37,6 +37,13 @@ Step-by-step local setup — copy-pasteable commands, no ambiguity.
 Table of all variables: name, description, required/optional, example value.
 Never include actual secrets — reference .env.example.
 
+**Env var audit (hard rules — run before writing or updating the table):**
+1. Enumerate every env var the code actually reads. Grep the config loader (`src/config/loader.ts` or equivalent) and `.env.example` for the canonical list — do not rely on what the previous README said.
+2. For each env var, confirm (a) it has a row in the README table, (b) its name is the exact `SCREAMING_SNAKE_CASE` of the matching schema/config key (e.g. `commandTimeoutSeconds` ⇒ `..._COMMAND_TIMEOUT_SECONDS`, not `..._TIMEOUT_SECONDS`), and (c) its description names the trigger or condition specifically enough to distinguish it from any sibling row that shares a prefix or semantic family.
+3. When two rows share a prefix (e.g. two cooldown knobs, two timeout knobs), rewrite both descriptions so each names its specific trigger; never ship adjacent rows whose descriptions could be swapped without changing meaning.
+4. If the change adds a deprecated alias for a renamed env var, add a clearly labelled "Deprecated aliases" sub-section mapping the old name to the new one. Don't leave the old name in the main table.
+5. Before finalising, scan the rest of the README for stale phrases the current change invalidates (examples: "not run in CI" after CI was removed, "defaults to X" when the default changed, references to the old env var name). Propose edits for each.
+
 ## Available Scripts
 What each script does (dev, build, test, lint, migrate, etc.)
 
