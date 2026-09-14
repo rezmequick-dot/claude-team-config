@@ -9,6 +9,7 @@ Global [Claude Code](https://claude.ai/claude-code) configuration — a complete
 | `CLAUDE.md` | Global rules, stakeholder policy, session start behaviour, agent roster |
 | `agents/` | 14 custom agents covering the full delivery lifecycle |
 | `commands/` | 12 slash commands that orchestrate agents into workflows |
+| `hooks/` | `PreToolUse` hooks that make agent-authored GitHub and ADO actions self-identifying |
 
 ---
 
