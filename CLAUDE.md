@@ -29,10 +29,44 @@
 - A PR is required for every feature delivery. ADO work items must not be closed until the feature is confirmed live in production.
 - **No agent may deploy to production without explicit Stakeholder approval in that session.** Prior session approval does not carry over.
 
+## Agent Action Attribution
+Actions an agent takes on the Stakeholder's behalf must be **self-identifying**. Neither
+platform distinguishes them automatically:
+
+- **Azure DevOps** authenticates as the Stakeholder (AAD). `System.CreatedBy`, `ChangedBy`
+  and `ActivatedBy` read "Jason Anthony" for agent writes too. There is no second ADO
+  identity and no way to add one.
+- **GitHub**: bare `gh` acts as `rezmequick-dot`. Only the commit trailer
+  (`Co-authored-by: Claude Code`) and the commit author login reveal an agent wrote it.
+
+**Never infer human action from ADO or GitHub attribution.** To establish who did something,
+check commit authors and `Co-authored-by` trailers (`git log --format='%an|%ae'`,
+`gh pr view N --json commits`). If those are unavailable, say the actor is indeterminate
+rather than guessing. On 2026-09-13 an agent told the Stakeholder they had hand-authored
+turnoverly spec PRs #767/#768 and moved two ADO tickets; the Stakeholder had touched none of
+it — a prior agent session had, and platform attribution hid that.
+
+Two of the three cases below are enforced by hooks in `hooks/` and need no effort. The third
+cannot be automated and is a standing rule:
+
+- **Structural ADO writes** — hyperlinks, state transitions, field and link changes — carry
+  no comment and so leave no trace of the actor. Follow each with a short comment naming what
+  changed and why. Backfilling the ADO-533/534 spec hyperlinks is the worked example: a
+  silent structural write, indistinguishable from a Stakeholder edit.
+
+Never run `gh auth switch`. The copilot-ado-loop daemon has no token of its own and resolves
+the keyring's **active** account live on every spawn, so switching would silently change the
+identity of automated work mid-cycle.
+
 ## Claude Config Repo Sync
 Canonical config source: https://github.com/rezmequick-dot/claude-team-config (Mac: `~/Documents/workspace/claude-team-config`).
 
-Covers: `~/.claude/CLAUDE.md`, `~/.claude/agents/*.md`, `~/.claude/commands/*.md`.
+Covers: `~/.claude/CLAUDE.md`, `~/.claude/agents/*.md`, `~/.claude/commands/*.md`,
+`~/.claude/hooks/*.sh`.
+
+Hooks additionally need registering in `~/.claude/settings.json` under `hooks.PreToolUse`;
+that file is NOT vendored here (it holds machine-specific MCP config and permissions), so
+copying a hook script across is not enough on its own — see `hooks/README.md`.
 
 When any of these are modified locally: copy to repo, create branch `improve/<description>`, commit, push, and open a PR via `gh pr create`. When the repo is updated: copy all files back to `~/.claude`. Do this at the end of any session where config changed.
 
