@@ -85,6 +85,47 @@ When a ticket genuinely needs moving, say so in your report and let the Stakehol
 
 ---
 
+## Three-Way Drift: ADO ↔ checkpoint phase ↔ GitHub PR
+
+A standing check, and the main reason you have ADO reads. Run it as part of any health sweep.
+
+### What the loop already fixes — do not report these
+
+`src/workflow/reconciliation.ts` runs once per cycle before the in-flight scan and corrects drift **only at the terminal boundary**: local `resolved` + ADO non-terminal → demote; local non-resolved + ADO terminal → promote; missing ADO item → delete the local checkpoint. It never mutates ADO, and it never looks at PRs at all.
+
+### What nothing fixes — your hunting ground
+
+**1. Mid-flight phase vs ADO state.** Phase is "an operational breadcrumb for restart visibility and diagnostics. Action selection is driven by ADO state, not by this phase value" (`src/checkpoint/schema.ts`). Because routing ignores it, this drift never self-corrects and never alarms — but it is the record of what the loop *believed* it did. Use `adoStateToPhase` in `src/workflow/phase-mapping.ts` as the authority; several phases are finer-grained than ADO, so check set membership, not equality:
+
+| ADO state | Consistent phases |
+|---|---|
+| New | `picked_up` |
+| Refinement | `generating_spec`, `picked_up` |
+| Awaiting Spec Approval | `awaiting_spec_approval` |
+| Active / In Progress | `spec_approved_implementing`, `implemented_awaiting_review`, `pr_rejected_addressing` |
+| Awaiting PR Review | `awaiting_pr_review` |
+| Resolved / Closed | `resolved` |
+
+Rejected and blocked states map to `null` by design — the reducer handles them, and callers fall back to `picked_up`. A `picked_up` phase on a rejected ticket is expected, not drift.
+
+Read the direction: a phase **ahead** of ADO means the loop did the work and the transition did not land — suspect a silently swallowed ADO write or a crash between doing and recording. A phase **behind** ADO usually means a human moved the ticket.
+
+**2. Anything involving the PR leg.** Only the spec-PR-merge path (`maybeApproveOnSpecPrMerge`) is self-healing. Check `prNumber`/`prUrl` on the checkpoint against the live PR via `gh`, and against the ADO link. Known divergence classes: a ticket in `Awaiting PR Review` whose PR is already merged or closed; a merged PR with the ticket still open; a checkpoint carrying a `prUrl` that ADO has no link for; and a merged spec PR hidden behind a closed draft (fixed in #227 — confirm before re-reporting).
+
+### The false-positive that matters most
+
+**A matched PR is a claim of delivery, not proof of it.** Association is a regex on title and head branch (`(ab#|ado-|#)<id>`, `src/github/client.ts:249`) — both *declared* by whoever opened the PR. Body matching was removed precisely because it produced a catastrophic false match: turnoverly PR #628, a one-line `tsconfig.json` change, was resolved as ADO #484's implementation because its body quoted a branch name. #484 went to `Awaiting PR Review` with **zero implementation written**.
+
+So before reporting "ticket and PR agree," confirm the PR's diff plausibly implements the ticket. And treat the inverse as a first-class finding: a ticket marked delivered by a PR that does not implement it is far more damaging than a ticket left waiting, and it is invisible in code review because the PR itself looks legitimate.
+
+Related trap: never put a ticket ID in a hand-authored PR's title or branch, or the loop may adopt it as that ticket's delivery.
+
+### Reporting drift
+
+Report the divergence, the direction, and the mechanism you traced. Do **not** hand-correct ADO. If the drift is one instance, it is an operational note; if the same shape recurs across tickets, it is a code defect in the loop and you should fix it there.
+
+---
+
 ## Diagnostic Process
 
 ### Phase 1 — Frame before you look
