@@ -7,7 +7,7 @@ Global [Claude Code](https://claude.ai/claude-code) configuration — a complete
 | Directory | Contents |
 |---|---|
 | `CLAUDE.md` | Global rules, stakeholder policy, session start behaviour, agent roster |
-| `agents/` | 14 custom agents covering the full delivery lifecycle |
+| `agents/` | 17 custom agents covering the full delivery lifecycle |
 | `commands/` | 12 slash commands that orchestrate agents into workflows |
 | `hooks/` | `PreToolUse` hooks that make agent-authored GitHub and ADO actions self-identifying |
 
@@ -31,6 +31,9 @@ Global [Claude Code](https://claude.ai/claude-code) configuration — a complete
 | `incident-responder` | Production incident diagnosis, restoration, post-mortems |
 | `api-designer` | REST/GraphQL contract design, versioning, OpenAPI specs |
 | `observability-engineer` | Structured logging, metrics, tracing, alerting, SLOs, dashboards |
+| `ui-ux-engineer` | Visual design conformance — spacing, tokens, responsive layout |
+| `loop-engineer` | The copilot-ado-loop daemon itself — telemetry, stalls, spend, fixes |
+| `spec-reviewer` | Docs-first spec PR triage — verdict + approve/reject recommendation |
 
 ---
 
