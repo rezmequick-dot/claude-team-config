@@ -37,19 +37,19 @@ Feature request: $ARGUMENTS
 2. **If $ARGUMENTS references an ADO ticket number** (e.g. "ADO #85", "ticket 85", "task 85") — extract the ticket ID and immediately update it via the ADO REST API:
    - Set state to `Active`
    - Assign to the current user (read assignee from `.env` as `AZURE_DEVOPS_USER_EMAIL`, or leave assigned-to unchanged if the var is absent)
-   - Use the PAT from `.env` as `AZURE_DEVOPS_AUTH_TOKEN`, org `applicationIngenuity`, project `Sarah Sweeps`
-   - API: `PATCH https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems/{id}?api-version=7.1`
+   - Use the PAT from `.env` as `AZURE_DEVOPS_AUTH_TOKEN`, org `applicationIngenuity`, project `Turnoverly`
+   - API: `PATCH https://dev.azure.com/applicationIngenuity/Turnoverly/_apis/wit/workitems/{id}?api-version=7.1`
    - Body: `[{"op":"add","path":"/fields/System.State","value":"Active"},{"op":"add","path":"/fields/System.AssignedTo","value":"<email>"}]`
    - Content-Type: `application/json-patch+json`
    - Use Node.js `https` module with `Buffer.from(':' + token).toString('base64')` for auth — do not shell out to curl
    - Log the HTTP status; if it fails, warn the Stakeholder and continue (do not block on ADO update failure)
    - **After updating the parent ticket, fetch its child work items:**
-     - `GET https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems/{id}?$expand=relations&api-version=7.1`
+     - `GET https://dev.azure.com/applicationIngenuity/Turnoverly/_apis/wit/workitems/{id}?$expand=relations&api-version=7.1`
      - Log the HTTP status for this fetch; if it fails, warn the Stakeholder and continue without child-ticket processing (do not block Phase 0 on ADO/API failure)
      - Filter `relations` where `rel === "System.LinkTypes.Hierarchy-Forward"` — these are child tickets
      - Extract child IDs from each relation URL (last path segment)
      - If children exist, fetch their details in a batch:
-       `GET https://dev.azure.com/applicationIngenuity/Sarah%20Sweeps/_apis/wit/workitems?ids={csv-ids}&fields=System.Id,System.Title,System.State,System.WorkItemType&api-version=7.1`
+       `GET https://dev.azure.com/applicationIngenuity/Turnoverly/_apis/wit/workitems?ids={csv-ids}&fields=System.Id,System.Title,System.State,System.WorkItemType&api-version=7.1`
      - Log the HTTP status for the batch child fetch; if it fails, warn the Stakeholder and continue without child-ticket selection/update (do not block Phase 0 on ADO/API failure)
      - Display the child tickets to the Stakeholder (ID, title, type, current state)
      - Ask the Stakeholder: "These child tickets were found. Set them all to Active and include them in this delivery, or select specific ones?" — wait for a response before continuing
