@@ -134,7 +134,26 @@ Hooks additionally need registering in `~/.claude/settings.json` under `hooks.Pr
 that file is NOT vendored here (it holds machine-specific MCP config and permissions), so
 copying a hook script across is not enough on its own — see `hooks/README.md`.
 
-When any of these are modified locally: copy to repo, create branch `improve/<description>`, commit, push, and open a PR via `gh pr create`. When the repo is updated: copy all files back to `~/.claude`. Do this at the end of any session where config changed.
+**The two copies diverge on purpose. Never blind-copy in either direction.**
+`~/.claude` is the machine- and project-specific working copy; the repo holds the **sanitised,
+portable** version of the same file. Verified 2026-09-23: the repo's `nr.md` reads
+`NEW_RELIC_ACCOUNT_ID` and `$APP_NAME` from the environment where the local one hardcodes a
+real account id and application name; the repo's `epic-dev.md` carries no org/project URLs at
+all where the local one has concrete ones in four API paths; `deploy.md` and
+`observability-engineer.md` differ the same way. Every differing file has content on **both**
+sides, so `cp` in either direction destroys work — copying repo→local would replace your
+project configuration with placeholders while "following the rules".
+
+Port changes **field by field**, keeping each side in its own idiom: concrete values locally,
+`{ADO_ORG}`/`{ADO_PROJECT}`/env-var placeholders in the repo. Before touching a vendored file,
+`diff` it against its local twin and read what diverges — the difference is usually deliberate.
+Never vendor a real account id, org, project or hostname.
+
+When a file is modified locally: port the change (not the file) to the repo, branch
+`improve/<description>` or `fix/<description>`, commit, push, open a PR via `gh pr create`.
+When the repo is updated: port back the same way, and copy wholesale **only** for files that
+are genuinely identical — `CLAUDE.md` is the one that reliably is. Do this at the end of any
+session where config changed.
 
 ## Semantic Code Search (CocoIndex MCP)
 MCP server `cocoindex-search` provides: `index_project(path)`, `search_code(query, project_path?, limit?)`, `list_indexed_projects()`.
