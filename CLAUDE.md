@@ -102,6 +102,28 @@ exposure stops, the cadence drops on its own.
 Report length, prefix, and a hash prefix — never the value. `copilot-ado-loop status` prints
 the ADO PAT to stdout, so running it during diagnosis puts the secret in your own transcript.
 
+**6. Never grep a credential-bearing file by structure. Select named keys.**
+Rule 5 is not enough, because the worst case is not an agent handling a secret — it is one
+that has no idea a secret is nearby. On 2026-07-28 a session tracing which repo the loop
+targeted ran, against the live LaunchAgent plist:
+
+```bash
+grep -iE "workspace/turnoverly|TARGET|REPO|ProgramArguments|<string>" "$PL"
+```
+
+`<string>` matches **every value in a plist**. The plist held `CLAUDE_CODE_OAUTH_TOKEN`, so
+the token printed, and Claude Code persisted the tool result to `~/.claude/projects/…jsonl`,
+where it sat for eight weeks. The same day, a *different* session had been scrupulous with
+that token — it refused to touch it and reported only prefix and length. One broad pattern
+undid that.
+
+So: when reading any file that could hold a credential (plists, `.env`, config, logs), match
+**named keys you actually want**, never structure — no `<string>`, no bare `.*`, no
+whole-line, no "dump it and eyeball it". Prefer a typed reader over grep:
+`plutil -extract EnvironmentVariables.FOO raw`, `jq '.foo'`. Pipe through a redactor if the
+output could be wide. And assume **tool output is persisted**: anything printed lands in a
+transcript on disk and outlives the session that printed it.
+
 ## Claude Config Repo Sync
 Canonical config source: https://github.com/rezmequick-dot/claude-team-config (Mac: `~/Documents/workspace/claude-team-config`).
 
