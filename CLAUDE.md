@@ -58,6 +58,50 @@ Never run `gh auth switch`. The copilot-ado-loop daemon has no token of its own 
 the keyring's **active** account live on every spawn, so switching would silently change the
 identity of automated work mid-cycle.
 
+## Token and Secret Handling
+
+Credentials have had to be rotated repeatedly because they keep landing in files written by
+tooling — not because they expired. Rotation resets the clock; it never touches the writer.
+These rules target the writer.
+
+**1. One store. Config files hold references, never values.**
+Secrets live in the login keychain. A LaunchAgent plist, `.env`, or shell profile may name a
+credential; it must never contain one. Known-good today: the ADO PAT at keychain service
+`copilot-ado-loop-ado-pat`, and Claude Code's own credentials at `Claude Code-credentials`.
+Retrieve the GitHub bot token with `gh auth token --user <login>` — **not** by reading the
+keychain directly, which returns a 74-char `go-k…` wrapper that is not the token and will
+401. Always verify a credential against its API before concluding an identity is broken.
+
+**2. Every file-writing path is a leak path.**
+The real vectors have been backups, log rotation, and serializers — never the original
+config. When adding code that writes a file, ask what could be in it:
+- Serialize **named fields**, never a whole config object. `config.ado` spread into a log
+  record leaked a PAT on every daemon start; the same object printed by a CLI command
+  bypassed logger redaction entirely. Redact at the serialization boundary, not in the logger.
+- Set the mode **at creation**. `createWriteStream`/`writeFile` without `mode` yields
+  `0666 & ~umask` = 0644. Log rotation did this and produced a world-readable archive beside
+  0600 logs.
+- Backups inherit whatever the original held. If a file could contain a secret, its `.bak`
+  does too.
+
+**3. Detect by shape, never by key name.**
+A sweep for one variable name (`grep AZURE_DEVOPS_EXT_PAT …`) missed a live
+`CLAUDE_CODE_OAUTH_TOKEN` sitting world-readable for seven weeks, in the same directory.
+Match **patterns** — `sk-ant-`, `gh[pousr]_`, `github_pat_`, and any env key ending
+`TOKEN|PAT|PASSWORD|SECRET` whose value is non-empty and not a placeholder — across **every**
+file, including ones that fail to parse. A parser-only scan skips malformed files silently;
+fall back to raw text. Beware `grep -c … || echo 0`, which emits `"0\n0"` and compares
+unequal to `"0"`, reporting every file as a leak.
+
+**4. Scope and lifetime over rotation cadence.**
+Prefer the narrowest scope that works — the ADO auth preflight deliberately probes work items
+so a Work-Items-only PAT passes startup. Rotate on **exposure**, not on a calendar; if
+exposure stops, the cadence drops on its own.
+
+**5. Never print a secret while investigating one.**
+Report length, prefix, and a hash prefix — never the value. `copilot-ado-loop status` prints
+the ADO PAT to stdout, so running it during diagnosis puts the secret in your own transcript.
+
 ## Claude Config Repo Sync
 Canonical config source: https://github.com/rezmequick-dot/claude-team-config (Mac: `~/Documents/workspace/claude-team-config`).
 
