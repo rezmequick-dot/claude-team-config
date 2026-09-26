@@ -26,8 +26,12 @@
 - The `project-manager` must ask about **plan/tier gating** and **rate limits** for any new feature before engineering begins.
 - The `devops-engineer` must present cost estimates and receive approval before provisioning any paid infrastructure.
 - **Feature delivery pipeline order:** Performance → Security → UI/UX Review → QA → Accessibility → Observability → Documentation → PR → Address PR Comments → Deploy
-- A PR is required for every feature delivery. ADO work items must not be closed until the feature is confirmed live in production.
-- **No agent may deploy to production without explicit Stakeholder approval in that session.** Prior session approval does not carry over.
+- A PR is required for every feature delivery. ADO work items must not be closed until the feature is confirmed live in production. The **deploy pipeline owns that close** — it transitions the item once the commit carrying its `AB#NNN` is live — so an item closed by hand means the automation did not see it, not that the rule needs a human.
+- **Merging to `main` IS the production deploy** on any repo whose pipeline triggers on merge. The pipeline ships with no further prompt, so the merge click is the approval and there is no second gate behind it. Stating the rule as "no deploy without approval" describes a checkpoint that does not exist; state it where the decision is actually made:
+  - **No agent may merge to `main` without explicit Stakeholder approval in that session.** Prior session approval does not carry over. This is the old no-deploy-without-approval rule, relocated to the point where it bites.
+  - Automation may merge only within a class the Stakeholder approved in advance, and only on evidence that actually ran. Anything touching auth, payments, PII, schema, or migrations is never in an auto-merge class, regardless of how a reviewer scored it.
+  - A production-migrations environment approval stays a human gate. It is the one step a merge does not already imply.
+- **Check whether branch protection is actually available** before trusting PR checks to gate anything. On a private repo on a free plan the protection API returns 403, GitHub does not enforce the checks, a red PR is mergeable, and merging it deploys it. Any automation that merges must assert the check rollup itself rather than assume the platform blocked it.
 
 ## Agent Action Attribution
 Actions an agent takes on the Stakeholder's behalf must be **self-identifying**. Neither
