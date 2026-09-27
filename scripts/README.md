@@ -95,10 +95,55 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.<you>.spec-review-sw
 launchctl kickstart -k gui/$(id -u)/com.<you>.spec-review-sweep   # run it now
 ```
 
+#### Full Disk Access is required, and without it the agent fails silently
+
+**Do this before bootstrapping, or the sweep will never run.** Grant Full Disk Access to the
+new agent in **System Settings → Privacy & Security → Full Disk Access**.
+
+macOS TCC protects `~/Documents`, `~/Desktop` and `~/Downloads` from processes that have no
+consent, and a **newly created** launchd agent has none. Both paths in the plist above live
+under `~/Documents`: the script itself and `TARGET_REPO`. Verified on macOS 25.5 on
+2026-09-27, with a real bootstrapped agent:
+
+```
+a) read script in ~/Documents:  DENIED
+b) list target repo:            DENIED
+c) git in target repo:          DENIED
+d) source the sweep script:     DENIED
+```
+
+Two things make this easy to misdiagnose:
+
+* **Consent does not transfer between agents.** An existing LaunchAgent on the same machine
+  reading the same directories proves nothing about a new one — TCC is keyed to the agent,
+  not to `/bin/bash`. On the machine above, the `copilot-ado-loop` daemon reads
+  `~/Documents/workspace/…` all day while this agent could not read any of it.
+* **Rooting the program outside `~/Documents` does not help.** Pointing
+  `ProgramArguments` at `/usr/bin/caffeinate → /bin/bash → ~/.local/bin/…`, mirroring that
+  working daemon exactly, was denied identically. The block is on reading the target paths,
+  not on locating the program.
+
+The failure mode is `/bin/bash: <path>: Operation not permitted` in
+`StandardErrorPath` — and nowhere else. `launchctl list` reports the job as loaded and
+healthy, so an uninstalled-but-loaded agent looks indistinguishable from a working one until
+you read that log. If you cannot grant Full Disk Access, leave the agent **unloaded** rather
+than loaded-and-failing, and run the script by hand from a terminal that already has consent.
+
 **Never put a credential in the plist.** The script resolves the bot token at runtime via
-`gh auth token --user`; `GH_BOT_LOGIN` names an account, it is not a secret. A plist that
-holds a token leaks it into every `.bak` the installer leaves behind, and `<string>`
-matches every value in a plist, so any later grep over it prints the token.
+`gh`; `GH_BOT_LOGIN` names an account, it is not a secret. A plist that holds a token leaks
+it into every `.bak` the installer leaves behind, and `<string>` matches every value in a
+plist, so any later grep over it prints the token.
+
+**Validate the plist with a strict parser, not just `plutil -lint`.** `plutil -lint` accepts
+XML that is not well-formed. A comment containing `--` (easily introduced by writing a flag
+such as `gh auth token --user` in a comment) is illegal XML, and `plutil -lint` still reports
+`OK`:
+
+```bash
+plutil -lint ~/Library/LaunchAgents/com.<you>.spec-review-sweep.plist   # necessary, not sufficient
+python3 -c "import plistlib,sys; plistlib.loads(open(sys.argv[1],'rb').read())" \
+  ~/Library/LaunchAgents/com.<you>.spec-review-sweep.plist              # the real check
+```
 
 ### Cost, and the contention that actually matters
 
