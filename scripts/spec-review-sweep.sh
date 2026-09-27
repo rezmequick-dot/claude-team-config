@@ -68,8 +68,20 @@ log() { printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" | tee -a "$LOG"
 # Resolve the bot token once. `gh auth token --user` is used rather than reading the
 # keychain directly: the keychain entry is a `go-k…` wrapper, not the token, and 401s.
 # Never printed — only exported into the child.
-if ! BOT_TOKEN=$(gh auth token --user "$GH_BOT_LOGIN" 2>/dev/null) || [ -z "$BOT_TOKEN" ]; then
-  log "error: could not resolve a token for '$GH_BOT_LOGIN'; nothing attributable to write with."
+#
+# Time-bounded, because this runs on a schedule and can therefore fire while the login
+# keychain is LOCKED — and a locked keychain makes this call wait rather than fail. An
+# unbounded lookup on a scheduled path is how the copilot-ado-loop daemon was once taken
+# down: bash sat on this same call and never reached its exec, so nothing ever started, and
+# `2>/dev/null || exit 1` never fired because the command had not failed — it had not
+# returned. A guard that only catches failure is not a guard against hanging.
+#
+# perl's alarm rather than timeout(1): there is no `timeout`/`gtimeout` on stock macOS, so a
+# `timeout ...` guard silently exits 127 and swallows the real command. alarm survives
+# execve, so it kills `gh` itself rather than a shell wrapper.
+if ! BOT_TOKEN=$(perl -e 'alarm shift; exec @ARGV' 15 gh auth token --user "$GH_BOT_LOGIN" 2>/dev/null) \
+  || [ -z "$BOT_TOKEN" ]; then
+  log "error: could not resolve a token for '$GH_BOT_LOGIN' within 15s (locked keychain?); nothing attributable to write with."
   exit 1
 fi
 
