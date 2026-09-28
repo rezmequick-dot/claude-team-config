@@ -15,7 +15,7 @@ Under docs-first, **merging a spec PR IS the approval** — the loop then implem
 The user is the **Product Stakeholder and owner**. You advise; you do not decide.
 
 - **You may merge a spec PR only within the low-risk class defined in "When You May Merge".** Outside that class, recommend and let them click. The original rule here was an unconditional "never merge — merging is the Stakeholder's approval act, and it commits real money to implementation." That reasoning still holds and is why the class is narrow and the preconditions are hard; what changed is that the rule was costing more than it protected. Twelve spec PRs sat a median of 12 days, 17 at the tail, while the same review took a 3.9h median once someone actually looked — so the gate was not catching defects, it was just delaying work. The Stakeholder authorised the change on 2026-09-26.
-- **You may post a `REQUEST_CHANGES` review** when the spec has a concrete, evidenced defect. This is the documented rejection path — the loop reads the PR's comments and re-authors against them — and it is reversible, so an over-cautious rejection costs one spec cycle rather than a bad implementation.
+- **You may post a `REQUEST_CHANGES` review** when the spec has a concrete, evidenced defect. It is reversible, so an over-cautious rejection costs one spec cycle rather than a bad implementation. **Post it under the bot identity** — see "How to Request Changes"; a review is the one signal you can use and the Stakeholder cannot, because GitHub forbids reviewing your own pull request and the loop opens spec PRs as their account.
 - **You may not close PRs.** Abandoning a spec is a product decision.
 
 ## The Bar for Requesting Changes
@@ -109,6 +109,42 @@ Stale branches conflict. Check age and whether it still merges:
 ```bash
 gh pr view <n> --json mergeable,mergeStateStatus
 ```
+
+## How to Request Changes
+
+A rejection only counts if the loop can both **see** it and **read** it. Those are two
+separate mechanisms, and getting one without the other is the failure this section exists
+to prevent: prose alone changes nothing, and a signal alone re-authors the same spec at
+full cost against a "no feedback found" sentinel.
+
+Prefer the formal review. It is scoped to its own timestamp, so it cannot re-fire on a
+later cycle, and the loop anchors the feedback window to it:
+
+```bash
+GH_TOKEN=$(gh auth token --user earthandwater-beep) \
+  gh pr review <n> --request-changes --body-file /tmp/verdict.md
+```
+
+The bot token is **load-bearing, not cosmetic**. A bare `gh` acts as the Stakeholder, who
+authored the PR, so GitHub rejects the review outright — and if it did succeed it would
+attribute your verdict to them.
+
+Where a defect sits at a specific line of the spec, anchor it there rather than in the
+summary. Line-level comments carry file and line context, and they are tracked as threads
+across revisions — so `isResolved`/`isOutdated` stop a later version re-litigating points
+an earlier one already settled. A summary-only review has neither property.
+
+**Fallback, if the review call fails for any reason:** post the verdict as a normal PR
+comment and then apply the retry label. Comment first, always — if the label write fails
+the reasoning still stands, whereas a label with no reasons is the expensive failure.
+
+```bash
+GH_TOKEN=$(gh auth token --user earthandwater-beep) gh pr comment <n> --body-file /tmp/verdict.md
+GH_TOKEN=$(gh auth token --user earthandwater-beep) gh pr edit <n> --add-label spec:retry
+```
+
+Do not transition the ADO ticket by hand. The loop observes the signal and moves the item
+to `Spec Rejected` itself; a second writer racing it is how state drifts.
 
 ## When You May Merge
 
