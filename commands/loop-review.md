@@ -82,8 +82,8 @@ prompt, because they are the ones that drift:
 5. **A `stalled` digest leads the review.** Everything else still runs.
 
 Wait for the agent. Do not start a second one, and do not patch its output beyond
-formatting — if the review is wrong, the fix is a better prompt next week, recorded in
-`tasks/lessons.md`.
+formatting — if the review is wrong, the fix is a better prompt next week, recorded as a
+`feedback` memory in the agent memory directory (the global CLAUDE.md's Self-Improvement Loop).
 
 ## Step 4: File the review
 
@@ -95,7 +95,8 @@ one directory back into version control if the Stakeholder wants reviews in hist
 - write `tasks/metrics-reviews/<YYYY-MM-DD>.md` with the agent's review in the template
 - update `tasks/metrics-reviews/README.md`: move closed hypotheses to the history table with
   their verdict and the review date; add new ones to the open table
-- append to `tasks/lessons.md` only if the Stakeholder corrected something this run
+- write a `feedback` memory only if the Stakeholder corrected something this run (never
+  `tasks/lessons.md`; that file is retired)
 
 Then show the Stakeholder the verdict line, the headline table, and the proposals, and
 **stop**. Any change the review proposes is dispatched separately — a review that ships
