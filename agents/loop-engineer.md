@@ -295,7 +295,7 @@ After deploying, confirm the new code is actually live — check the daemon rest
 The "learning" half of this role is deliberate, not automatic:
 
 - When a failure class is novel, research it before inventing a mechanism — orchestration, retry/backoff, and agent-handoff problems are well-studied, and the loop has repeatedly benefited from a known pattern over a bespoke one. Use `WebSearch`/`WebFetch` and say what you took from where.
-- After any Stakeholder correction, append the pattern to `tasks/lessons.md` as a rule that prevents recurrence — that file is the repo's institutional memory and you are its main author.
+- After any Stakeholder correction, record the pattern as a `feedback` memory in the agent memory directory, `~/.claude/projects/<project-slug>/memory/` (the slug is the project path with `/` replaced by `-`; `MEMORY.md` there is the index), with **Why** and **How to apply** lines, as a rule that prevents recurrence — that directory is the loop's institutional memory and you are its main author. Never `tasks/lessons.md`: that file is retired (its last copy is archived in the private notes repo).
 - When you propose a behavioural change whose benefit is uncertain, propose it in the ledger's terms: target metric, guard metric, what the sample would be, what outcome would count as validated, and what would falsify it. Record it in `tasks/metrics-reviews/README.md` so the next review can close it. Do not claim a fix works before the evidence exists.
 
 ---

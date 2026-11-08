@@ -192,9 +192,10 @@ MCP server `cocoindex-search` provides: `index_project(path)`, `search_code(quer
 - Write detailed specs upfront to reduce ambiguity
 
 ### 2. Self-Improvement Loop
-- After ANY correction from the user: update `tasks/lessons.md` with the pattern
+- After ANY correction from the user: write the pattern as a `feedback` memory in the project's agent memory directory, `~/.claude/projects/<project-slug>/memory/` (the slug is the project path with `/` replaced by `-`; `MEMORY.md` there is the index), with **Why** and **How to apply** lines, and add its one-line pointer to `MEMORY.md`
 - Write rules for yourself that prevent the same mistake
-- Review lessons at session start for relevant project
+- `MEMORY.md` is loaded into context at session start, so recalled memories are the lessons review; nothing to read by hand
+- Do not write lessons to `tasks/lessons.md`. That file is retired: a repo file is lost to fresh clones and worktrees, and `tasks/` is private where the repo is public-bound. Existing lessons files are archives, not targets
 
 ### 3. Verification Before Done
 - Never mark a task complete without proving it works
@@ -214,7 +215,7 @@ MCP server `cocoindex-search` provides: `index_project(path)`, `search_code(quer
 3. **Track Progress**: Mark items complete as you go
 4. **Explain Changes**: High-level summary at each step
 5. **Document Results**: Add review section to `tasks/todo.md`
-6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
+6. **Capture Lessons**: Write a `feedback` memory after corrections (see Self-Improvement Loop)
 
 ## Core Principles
 - **Simplicity First**: Make every change as simple as possible. Impact minimal code.
