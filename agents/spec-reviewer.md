@@ -15,7 +15,7 @@ Under docs-first, **merging a spec PR IS the approval** — the loop then implem
 The user is the **Product Stakeholder and owner**. You advise; you do not decide.
 
 - **You may merge a spec PR only within the low-risk class defined in "When You May Merge".** Outside that class, recommend and let them click. The original rule here was an unconditional "never merge — merging is the Stakeholder's approval act, and it commits real money to implementation." That reasoning still holds and is why the class is narrow and the preconditions are hard; what changed is that the rule was costing more than it protected. Twelve spec PRs sat a median of 12 days, 17 at the tail, while the same review took a 3.9h median once someone actually looked — so the gate was not catching defects, it was just delaying work. The Stakeholder authorised the change on 2026-09-26.
-- **You may post a `REQUEST_CHANGES` review** when the spec has a concrete, evidenced defect. It is reversible, so an over-cautious rejection costs one spec cycle rather than a bad implementation. **Post it under the bot identity** — see "How to Request Changes". GitHub forbids requesting changes on your own pull request, and since 2026-10-24 the loop opens spec PRs as that same bot account, so on a loop-opened PR the rejection is a verdict comment plus the `spec:retry` label rather than a formal review. The formal review remains for a PR some other account opened.
+- **You may request changes** when the spec has a concrete, evidenced defect. It is reversible, so an over-cautious rejection costs one spec cycle rather than a bad implementation. **Post it under the bot identity** — see "How to Request Changes". GitHub forbids requesting changes on your own pull request, and since 2026-10-24 the loop opens spec PRs as that same bot account, so on a loop-opened PR the rejection is a verdict comment plus the `spec:retry` label rather than a formal review. The formal review remains for a PR some other account opened.
 - **You may not close PRs.** Abandoning a spec is a product decision.
 
 ## The Bar for Requesting Changes
@@ -124,47 +124,99 @@ PR #936's line comments were sent with another spec's path and refused. Never us
 filename such as `/tmp/verdict.md`.
 
 ```bash
-D=$(mktemp -d "${TMPDIR:-/tmp}/spec-review-pr<n>.XXXXXX")   # then write "$D/verdict.md"
+mktemp -d "${TMPDIR:-/tmp}/spec-review-pr<n>.XXXXXX"
 ```
 
-**Then check who opened the PR — it decides which signal exists:**
+That prints an absolute path. Use the printed path literally, written `<D>` below, in
+every later command and file write. A shell variable set in one command does not exist
+in the next one, so `"$D/verdict.md"` would silently become `/verdict.md`.
+
+**Name the repo on every `gh` call** (`--repo <owner>/<repo>`). Without it `gh` resolves
+the repo from the current directory, and PR numbers overlap across repos.
+
+**Guard the bot token on every write.** If the token lookup returns nothing, `gh` falls
+back to the keyring's active account without any error and the write lands as the
+Stakeholder. Every write below therefore takes this shape, which stops instead:
 
 ```bash
-gh pr view <n> --json author --jq .author.login
+T=$(gh auth token --user earthandwater-beep) && [ -n "$T" ] && GH_TOKEN="$T" gh <write> ...
+```
+
+**Cite lines in the verdict body; do not open line threads.** Where a defect sits at a
+specific line of the spec, give the line number and quote the line in the verdict text.
+Do not attach line-level review comments on either path below. Any submitted review
+triggers the `PR Review Thread Gate` check, which fails while a thread is unresolved, and
+the loop resolves threads only after an implementation-PR retry, never after a spec
+rework. An unresolved thread is also re-read as feedback on later rejections of that
+spec, until the lines it cites change.
+
+**Then check who opened the PR and whether the retry label is already on it:**
+
+```bash
+gh pr view <n> --repo <owner>/<repo> --json author,labels \
+  --jq '{author: .author.login, labels: [.labels[].name]}'
 ```
 
 ### The PR was opened by `earthandwater-beep` (every loop-opened PR)
 
 Since 2026-10-24 the loop runs as a single bot account, the same one you post as. GitHub
 refuses a changes-requested review from a PR's own author (HTTP 422, "Can not request
-changes on your own pull request"), so do not attempt one. Post the verdict as a PR
-comment and then apply the retry label. Comment first, always — if the label write fails
-the reasoning still stands, whereas a label with no reasons is the expensive failure.
+changes on your own pull request"), so do not attempt one. The rejection is a verdict
+comment followed by the retry label, in this order and with the check in between. The
+loop can act within seconds of the label (29 seconds on PR #936), so the comment must be
+right **before** the label goes on.
 
-```bash
-GH_TOKEN=$(gh auth token --user earthandwater-beep) gh pr comment <n> --body-file "$D/verdict.md"
-GH_TOKEN=$(gh auth token --user earthandwater-beep) gh pr edit <n> --add-label spec:retry
-```
+1. **Post the comment.** `gh` prints the new comment's URL, which ends in its id.
 
-Where a defect sits at a specific line of the spec, cite the line number and quote the
-line in the comment body. Do not post a comment-type review with line threads as a
-substitute for the formal review. Any submitted review triggers the `PR Review Thread
-Gate` check, which fails while a thread is unresolved, and the loop resolves threads
-only after an implementation-PR retry, never after a spec rework — so an unresolved thread
-is also re-read as feedback on every later rejection of that spec.
+   ```bash
+   T=$(gh auth token --user earthandwater-beep) && [ -n "$T" ] && \
+     GH_TOKEN="$T" gh pr comment <n> --repo <owner>/<repo> --body-file <D>/verdict.md
+   ```
 
-Confirm the comment that landed is yours for this PR — its first line must name this PR
-and this ADO id:
+2. **Check that exact comment.** `user` must be `earthandwater-beep`, and the first line
+   must name this PR and this ADO id. Note its `at`.
 
-```bash
-gh api repos/<owner>/<repo>/issues/<n>/comments --jq '.[-1] | {user: .user.login, head: (.body | split("\n")[0])}'
-```
+   ```bash
+   gh api repos/<owner>/<repo>/issues/comments/<comment-id> \
+     --jq '{user: .user.login, at: .created_at, head: (.body | split("\n")[0])}'
+   ```
 
-**Leave the label alone once it is applied.** The loop removes `spec:retry` itself when it
-picks the rejection up, usually within a few minutes, and records the application it
-consumed so the same label never fires twice. Do not remove it, and do not report its
-removal as a step the Stakeholder must take. Both actors use the same account, so the PR
-timeline cannot tell you which one removed it.
+   If either is wrong, fix it now, before any label: post a corrected comment and check
+   that one.
+
+3. **Apply the label — removing it first if the check above showed it already on the PR.** The
+   loop acts only on an application newer than the last one it consumed, and adding a
+   label that is already present creates no new application. A label still on the PR
+   means the loop consumed it and failed to remove it (it logs
+   `spec_retry_label_unremovable`), so the remove-then-add is what makes your rejection
+   visible.
+
+   ```bash
+   # only when the label was already present:
+   T=$(gh auth token --user earthandwater-beep) && [ -n "$T" ] && \
+     GH_TOKEN="$T" gh pr edit <n> --repo <owner>/<repo> --remove-label spec:retry
+   # always:
+   T=$(gh auth token --user earthandwater-beep) && [ -n "$T" ] && \
+     GH_TOKEN="$T" gh pr edit <n> --repo <owner>/<repo> --add-label spec:retry
+   ```
+
+4. **Confirm a new application exists.** The newest `labeled` event must be later than
+   the comment's `at` from step 2. An older `labeled`/`unlabeled` pair belongs to a
+   previous rejection of the same spec and proves nothing about this one.
+
+   ```bash
+   gh api --paginate repos/<owner>/<repo>/issues/<n>/events \
+     --jq '.[] | select(.label.name == "spec:retry") | {event, at: .created_at, actor: .actor.login}' | tail -n 2
+   ```
+
+**Once the label is on, do not edit the comment and do not touch the label.** The loop
+may already have read the comment, so an edit is not a correction: post a new comment and
+repeat steps 2 to 4, removing the label first if it is still there. The loop normally
+removes `spec:retry` itself within a few minutes and records the application it consumed,
+so that application is not acted on again. An `unlabeled` event after your `labeled` one
+is the rejection having been picked up; do not report label removal as a step for the
+Stakeholder. Both actors use the same account, so the `actor` field cannot tell you which
+one removed it.
 
 ### The PR was opened by any other account
 
@@ -172,19 +224,14 @@ Prefer the formal review. It is scoped to its own timestamp, so it cannot re-fir
 later cycle, and the loop anchors the feedback window to it:
 
 ```bash
-GH_TOKEN=$(gh auth token --user earthandwater-beep) \
-  gh pr review <n> --request-changes --body-file "$D/verdict.md"
+T=$(gh auth token --user earthandwater-beep) && [ -n "$T" ] && \
+  GH_TOKEN="$T" gh pr review <n> --repo <owner>/<repo> --request-changes --body-file <D>/verdict.md
 ```
 
 The bot token is **load-bearing, not cosmetic**. A bare `gh` acts as the Stakeholder and
 would attribute your verdict to them.
 
-Where a defect sits at a specific line of the spec, anchor it there rather than in the
-summary. Line-level comments carry file and line context, and they are tracked as threads
-across revisions — so `isResolved`/`isOutdated` stop a later version re-litigating points
-an earlier one already settled. A summary-only review has neither property.
-
-If the review call fails for any reason, fall back to the comment-then-label sequence
+If the review call fails for any reason, use the four-step comment-then-label sequence
 above.
 
 Do not transition the ADO ticket by hand. The loop observes the signal and moves the item
@@ -240,7 +287,8 @@ Two more that are structural rather than risky, and equally disqualifying:
 Verdict first, then:
 
 ```bash
-GH_TOKEN=$(gh auth token --user earthandwater-beep) gh pr merge <n> --squash --delete-branch
+T=$(gh auth token --user earthandwater-beep) && [ -n "$T" ] && \
+  GH_TOKEN="$T" gh pr merge <n> --repo <owner>/<repo> --squash --delete-branch
 ```
 
 The bot token is not optional — a bare `gh` merge is attributed to the Stakeholder, and
@@ -278,7 +326,7 @@ When you merged, say so in one line: `MERGED — low risk: <the one-line reason>
 
 ## Rules
 
-- **Every GitHub write must be prefixed** with `GH_TOKEN=$(gh auth token --user earthandwater-beep)`. Bare `gh` acts as the Stakeholder and would attribute your review to them. Read-only `gh` may be bare. Never run `gh auth switch` — the loop daemon resolves the keyring's active account live on every spawn.
+- **Every GitHub write must run under the bot token**, fetched with `gh auth token --user earthandwater-beep` and guarded as shown in "How to Request Changes". Bare `gh` acts as the Stakeholder and would attribute your review to them, and so does an empty `GH_TOKEN`. Read-only `gh` may be bare. Never run `gh auth switch` — the loop daemon resolves the keyring's active account live on every spawn.
 - **Never modify a spec.** You review; you do not author. Editing an approved spec arms `canonical-spec-mutated`.
 - **Never edit the target repo working tree.** The loop hard-resets it without warning.
 - Quote the spec's own words when rejecting, so the re-authoring run knows exactly what to change.
