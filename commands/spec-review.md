@@ -59,17 +59,41 @@ instructions stands.
 ## Step 3: Act on each verdict
 
 **REQUEST CHANGES** — the agent posts its own verdict and signal, per its "How to Request
-Changes" section: a formal `REQUEST_CHANGES` review under the bot identity, falling back to
-comment-then-`spec:retry`-label. Verify it actually landed rather than trusting the report:
+Changes" section. On a loop-opened PR that is a verdict comment followed by the
+`spec:retry` label, because the loop and the reviewer share one bot account and GitHub
+refuses a changes-requested review from a PR's own author. A formal `REQUEST_CHANGES`
+review applies only to a PR some other account opened. Verify it actually landed rather
+than trusting the report:
 
 ```bash
-gh pr view <n> --repo {GITHUB_REPO} --json reviewDecision,labels,comments \
+gh api --paginate repos/{GITHUB_REPO}/issues/<n>/comments \
+  --jq '.[] | {user: .user.login, at: .created_at, head: (.body | split("\n")[0])}' | tail -n 3
+gh api --paginate repos/{GITHUB_REPO}/issues/<n>/events \
+  --jq '.[] | select(.label.name == "spec:retry") | {event, at: .created_at, actor: .actor.login}' | tail -n 2
+gh pr view <n> --repo {GITHUB_REPO} --json reviewDecision,labels \
   --jq '{reviewDecision, labels: [.labels[].name]}'
 ```
 
+Three things must hold, and each one catches a failure that has happened:
+
+1. **A verdict comment from this run exists**, posted by the bot account, whose first line
+   names **this** PR and ADO id. Parallel reviewers have cross-posted, and a write with an
+   empty bot token lands under the Stakeholder's account without any error.
+2. **A `labeled` event exists that is later than that comment.** An older
+   `labeled`/`unlabeled` pair belongs to an earlier rejection of the same spec and says
+   nothing about this one.
+3. **For a PR another account opened only:** `reviewDecision` is `CHANGES_REQUESTED`. On a
+   loop-opened PR it is always empty, so do not read it as a failure there.
+
+An `unlabeled` event after the new `labeled` one is the loop having picked the rejection
+up; the label being gone is the normal case, not a problem, and is not something to ask
+the Stakeholder to fix.
+
 A prose verdict that set no review state and applied no label is the failure mode this
-whole command exists to avoid — it looks like a rejection and blocks nothing. If neither
-landed, apply the fallback yourself and say that you had to.
+whole command exists to avoid — it looks like a rejection and blocks nothing. If the
+verdict comment is there but no `labeled` event postdates it, apply the label yourself
+under the bot token, following step 3 of the agent's sequence (remove it first if it is
+already on the PR), and say that you had to. Do not post the comment again.
 
 **APPROVE / NEEDS YOUR CALL** — do **not** merge, do **not** label, do **not** close.
 Report it for the Stakeholder with the PR link and a one-line rationale.
@@ -106,10 +130,16 @@ without it the revision would be authored against nothing. Worth knowing when a 
 back having ignored the feedback: check whether the comment was in window before concluding
 the model ignored it.
 
+The same window is why a stuck label matters. The loop reads comments from the hour
+before the moment it acts, so if the daemon is paused or backed off and `spec:retry` is
+still on a PR about 45 minutes after its verdict comment, report it: past the hour the
+verdict falls out of the window and the spec is re-authored against nothing.
+
 ## Attribution
 
 Every write you or the agent make on the Stakeholder's behalf must be self-identifying.
 A bare `gh` acts as the Stakeholder; agent writes go through
-`GH_TOKEN=$(gh auth token --user {AGENT_GH_LOGIN})`. Never run `gh auth switch` — the
+`GH_TOKEN=$(gh auth token --user {AGENT_GH_LOGIN})`, and an empty token falls back to the
+Stakeholder's account silently, so check it is non-empty first. Never run `gh auth switch` — the
 loop daemon resolves the keyring's active account live on every spawn, so switching would
 silently change the identity of automated work mid-cycle.
