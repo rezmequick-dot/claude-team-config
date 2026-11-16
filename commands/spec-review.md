@@ -59,17 +59,31 @@ instructions stands.
 ## Step 3: Act on each verdict
 
 **REQUEST CHANGES** — the agent posts its own verdict and signal, per its "How to Request
-Changes" section: a formal `REQUEST_CHANGES` review under the bot identity, falling back to
-comment-then-`spec:retry`-label. Verify it actually landed rather than trusting the report:
+Changes" section. On a loop-opened PR that is a verdict comment followed by the
+`spec:retry` label, because the loop and the reviewer share one bot account and GitHub
+refuses a changes-requested review from a PR's own author. A formal `REQUEST_CHANGES`
+review applies only to a PR some other account opened. Verify it actually landed rather
+than trusting the report:
 
 ```bash
-gh pr view <n> --repo {GITHUB_REPO} --json reviewDecision,labels,comments \
+gh pr view <n> --repo {GITHUB_REPO} --json reviewDecision,labels \
   --jq '{reviewDecision, labels: [.labels[].name]}'
+gh api repos/{GITHUB_REPO}/issues/<n>/comments \
+  --jq '.[-1] | {user: .user.login, at: .created_at, head: (.body | split("\n")[0])}'
+gh api repos/{GITHUB_REPO}/issues/<n>/events \
+  --jq '[.[] | select(.label.name == "spec:retry") | {event, at: .created_at}] | .[-2:]'
 ```
 
+The comment's first line must name **this** PR and ADO id; parallel reviewers have
+cross-posted before. The label may already be gone when you look: the loop removes
+`spec:retry` itself once it picks the rejection up, so a `labeled` event followed by an
+`unlabeled` one is the signal having been consumed, not having failed. Do not ask the
+Stakeholder to remove the label.
+
 A prose verdict that set no review state and applied no label is the failure mode this
-whole command exists to avoid — it looks like a rejection and blocks nothing. If neither
-landed, apply the fallback yourself and say that you had to.
+whole command exists to avoid — it looks like a rejection and blocks nothing. If the
+events show the label was never applied, apply the fallback yourself and say that you had
+to.
 
 **APPROVE / NEEDS YOUR CALL** — do **not** merge, do **not** label, do **not** close.
 Report it for the Stakeholder with the PR link and a one-line rationale.

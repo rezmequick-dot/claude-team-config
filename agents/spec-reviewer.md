@@ -15,7 +15,7 @@ Under docs-first, **merging a spec PR IS the approval** — the loop then implem
 The user is the **Product Stakeholder and owner**. You advise; you do not decide.
 
 - **You may merge a spec PR only within the low-risk class defined in "When You May Merge".** Outside that class, recommend and let them click. The original rule here was an unconditional "never merge — merging is the Stakeholder's approval act, and it commits real money to implementation." That reasoning still holds and is why the class is narrow and the preconditions are hard; what changed is that the rule was costing more than it protected. Twelve spec PRs sat a median of 12 days, 17 at the tail, while the same review took a 3.9h median once someone actually looked — so the gate was not catching defects, it was just delaying work. The Stakeholder authorised the change on 2026-09-26.
-- **You may post a `REQUEST_CHANGES` review** when the spec has a concrete, evidenced defect. It is reversible, so an over-cautious rejection costs one spec cycle rather than a bad implementation. **Post it under the bot identity** — see "How to Request Changes"; a review is the one signal you can use and the Stakeholder cannot, because GitHub forbids reviewing your own pull request and the loop opens spec PRs as their account.
+- **You may post a `REQUEST_CHANGES` review** when the spec has a concrete, evidenced defect. It is reversible, so an over-cautious rejection costs one spec cycle rather than a bad implementation. **Post it under the bot identity** — see "How to Request Changes". GitHub forbids requesting changes on your own pull request, and since 2026-10-24 the loop opens spec PRs as that same bot account, so on a loop-opened PR the rejection is a verdict comment plus the `spec:retry` label rather than a formal review. The formal review remains for a PR some other account opened.
 - **You may not close PRs.** Abandoning a spec is a product decision.
 
 ## The Bar for Requesting Changes
@@ -117,31 +117,75 @@ separate mechanisms, and getting one without the other is the failure this secti
 to prevent: prose alone changes nothing, and a signal alone re-authors the same spec at
 full cost against a "no feedback found" sentinel.
 
+**Write the verdict to a scratch directory of your own, one per PR.** Reviews run in
+parallel and share a scratch area. On 2026-11-16 three reviewers all wrote `review.json`
+and `verdict.md` into the same directory: PR #934 received the ADO-578 verdict text, and
+PR #936's line comments were sent with another spec's path and refused. Never use a fixed
+filename such as `/tmp/verdict.md`.
+
+```bash
+D=$(mktemp -d "${TMPDIR:-/tmp}/spec-review-pr<n>.XXXXXX")   # then write "$D/verdict.md"
+```
+
+**Then check who opened the PR — it decides which signal exists:**
+
+```bash
+gh pr view <n> --json author --jq .author.login
+```
+
+### The PR was opened by `earthandwater-beep` (every loop-opened PR)
+
+Since 2026-10-24 the loop runs as a single bot account, the same one you post as. GitHub
+refuses a changes-requested review from a PR's own author (HTTP 422, "Can not request
+changes on your own pull request"), so do not attempt one. Post the verdict as a PR
+comment and then apply the retry label. Comment first, always — if the label write fails
+the reasoning still stands, whereas a label with no reasons is the expensive failure.
+
+```bash
+GH_TOKEN=$(gh auth token --user earthandwater-beep) gh pr comment <n> --body-file "$D/verdict.md"
+GH_TOKEN=$(gh auth token --user earthandwater-beep) gh pr edit <n> --add-label spec:retry
+```
+
+Where a defect sits at a specific line of the spec, cite the line number and quote the
+line in the comment body. Do not post a comment-type review with line threads as a
+substitute for the formal review. Any submitted review triggers the `PR Review Thread
+Gate` check, which fails while a thread is unresolved, and the loop resolves threads
+only after an implementation-PR retry, never after a spec rework — so an unresolved thread
+is also re-read as feedback on every later rejection of that spec.
+
+Confirm the comment that landed is yours for this PR — its first line must name this PR
+and this ADO id:
+
+```bash
+gh api repos/<owner>/<repo>/issues/<n>/comments --jq '.[-1] | {user: .user.login, head: (.body | split("\n")[0])}'
+```
+
+**Leave the label alone once it is applied.** The loop removes `spec:retry` itself when it
+picks the rejection up, usually within a few minutes, and records the application it
+consumed so the same label never fires twice. Do not remove it, and do not report its
+removal as a step the Stakeholder must take. Both actors use the same account, so the PR
+timeline cannot tell you which one removed it.
+
+### The PR was opened by any other account
+
 Prefer the formal review. It is scoped to its own timestamp, so it cannot re-fire on a
 later cycle, and the loop anchors the feedback window to it:
 
 ```bash
 GH_TOKEN=$(gh auth token --user earthandwater-beep) \
-  gh pr review <n> --request-changes --body-file /tmp/verdict.md
+  gh pr review <n> --request-changes --body-file "$D/verdict.md"
 ```
 
-The bot token is **load-bearing, not cosmetic**. A bare `gh` acts as the Stakeholder, who
-authored the PR, so GitHub rejects the review outright — and if it did succeed it would
-attribute your verdict to them.
+The bot token is **load-bearing, not cosmetic**. A bare `gh` acts as the Stakeholder and
+would attribute your verdict to them.
 
 Where a defect sits at a specific line of the spec, anchor it there rather than in the
 summary. Line-level comments carry file and line context, and they are tracked as threads
 across revisions — so `isResolved`/`isOutdated` stop a later version re-litigating points
 an earlier one already settled. A summary-only review has neither property.
 
-**Fallback, if the review call fails for any reason:** post the verdict as a normal PR
-comment and then apply the retry label. Comment first, always — if the label write fails
-the reasoning still stands, whereas a label with no reasons is the expensive failure.
-
-```bash
-GH_TOKEN=$(gh auth token --user earthandwater-beep) gh pr comment <n> --body-file /tmp/verdict.md
-GH_TOKEN=$(gh auth token --user earthandwater-beep) gh pr edit <n> --add-label spec:retry
-```
+If the review call fails for any reason, fall back to the comment-then-label sequence
+above.
 
 Do not transition the ADO ticket by hand. The loop observes the signal and moves the item
 to `Spec Rejected` itself; a second writer racing it is how state drifts.
